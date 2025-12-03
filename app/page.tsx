@@ -22,7 +22,6 @@ const STATUS_OPTIONS = [
   "未エントリー", "書類選考中", "1次面接", "2次面接", "最終面接", "内定", "お見送り",
 ];
 
-// ▼▼ 修正1：ここを「普通」から「中」に変えました ▼▼
 const PRIORITY_OPTIONS = ["高", "中", "低"];
 
 export default function Home() {
@@ -35,7 +34,6 @@ export default function Home() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companyName, setCompanyName] = useState("");
   const [nextDate, setNextDate] = useState("");
-
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
 
   // 検索・絞り込み用
@@ -72,11 +70,7 @@ export default function Home() {
   };
 
   const fetchCompanies = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("companies")
-      .select("*")
-      .order("created_at", { ascending: true });
-
+    const { data, error } = await supabase.from("companies").select("*").order("created_at", { ascending: true });
     if (error) console.error(error);
     else {
       const formattedData = data.map((item: any) => ({
@@ -88,7 +82,6 @@ export default function Home() {
         login_id: item.login_id || "",
         login_password: item.login_password || "",
         memo: item.memo || "",
-        // ▼▼ 修正2：DBに「普通」と入っていても「中」として扱う ▼▼
         priority: (item.priority === "普通" ? "中" : item.priority) || "中",
         industry: item.industry || "",
       }));
@@ -111,25 +104,15 @@ export default function Home() {
     if (companyName === "" || !user) return;
     const { data, error } = await supabase
       .from("companies")
-      .insert([{
-        user_id: user.id,
-        name: companyName,
-        status: "未エントリー",
-        next_date: nextDate,
-        priority: "中" // ▼▼ 修正3：初期値を「中」に ▼▼
-      }])
+      .insert([{ user_id: user.id, name: companyName, status: "未エントリー", next_date: nextDate, priority: "中" }])
       .select();
 
     if (error) alert(error.message);
     else {
       // @ts-ignore
       const newCompany: Company = {
-        id: data[0].id,
-        name: data[0].name,
-        status: data[0].status,
-        nextDate: data[0].next_date || "",
-        priority: "中", industry: "",
-        mypage_url: "", login_id: "", login_password: "", memo: ""
+        id: data[0].id, name: data[0].name, status: data[0].status, nextDate: data[0].next_date || "",
+        priority: "中", industry: "", mypage_url: "", login_id: "", login_password: "", memo: ""
       };
       setCompanies([...companies, newCompany]);
       setCompanyName(""); setNextDate("");
@@ -159,18 +142,14 @@ export default function Home() {
   const handleSaveDetails = async () => {
     if (!editingCompany) return;
     setCompanies(companies.map(c => c.id === editingCompany.id ? editingCompany : c));
-    const { error } = await supabase
-      .from("companies")
-      .update({
-        mypage_url: editingCompany.mypage_url,
-        login_id: editingCompany.login_id,
-        login_password: editingCompany.login_password,
-        memo: editingCompany.memo,
-        priority: editingCompany.priority,
-        industry: editingCompany.industry,
-      })
-      .eq("id", editingCompany.id);
-
+    const { error } = await supabase.from("companies").update({
+      mypage_url: editingCompany.mypage_url,
+      login_id: editingCompany.login_id,
+      login_password: editingCompany.login_password,
+      memo: editingCompany.memo,
+      priority: editingCompany.priority,
+      industry: editingCompany.industry,
+    }).eq("id", editingCompany.id);
     if (error) alert("保存失敗");
     setEditingCompany(null);
   };
@@ -182,22 +161,31 @@ export default function Home() {
     return "border-l-blue-500 bg-blue-50";
   };
 
-  // ▼▼ 修正4：星の表示ロジックを修正 ▼▼
   const getPriorityIcon = (priority: string) => {
     if (priority === "高") return "⭐⭐⭐";
-    if (priority === "中" || priority === "普通") return "⭐⭐"; // 中も普通も星2つ！
-    return "⭐"; // 低、その他は星1つ
+    if (priority === "中" || priority === "普通") return "⭐⭐";
+    return "⭐";
   };
+
+  // ▼▼ 新機能：ダッシュボード集計ロジック ▼▼
+  // 1. エントリー総数（全部）
+  const totalCount = companies.length;
+
+  // 2. 内定数
+  const offerCount = companies.filter(c => c.status === "内定").length;
+
+  // 3. 面接中（ステータスに「面接」が含まれるもの）
+  const interviewCount = companies.filter(c => c.status.includes("面接")).length;
+
+  // 4. 第一志望（優先度「高」かつ、まだ終わっていないもの）
+  const highPriorityActiveCount = companies.filter(c => c.priority === "高" && c.status !== "お見送り" && c.status !== "内定").length;
 
   // 検索・絞り込みロジック
   const filteredCompanies = companies.filter((company) => {
     const searchLower = searchText.toLowerCase();
     const matchName = company.name.toLowerCase().includes(searchLower);
     const matchIndustry = company.industry?.toLowerCase().includes(searchLower);
-
-    // ▼▼ 修正5：フィルターのロジックも「中」に対応 ▼▼
     const matchPriority = filterPriority === "すべて" || company.priority === filterPriority || (filterPriority === "中" && company.priority === "普通");
-
     return (matchName || matchIndustry) && matchPriority;
   });
 
@@ -228,7 +216,7 @@ export default function Home() {
 
   return (
     <div className="p-8 max-w-2xl mx-auto relative">
-      {/* モーダル */}
+      {/* モーダル (省略なし) */}
       {editingCompany && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -241,10 +229,7 @@ export default function Home() {
                     {PRIORITY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700">業界 / タグ</label>
-                  <input type="text" placeholder="IT, メーカーなど" className="border p-2 rounded w-full mt-1" value={editingCompany.industry || ""} onChange={(e) => setEditingCompany({ ...editingCompany, industry: e.target.value })} />
-                </div>
+                <div><label className="block text-sm font-bold text-gray-700">業界 / タグ</label><input type="text" placeholder="IT, メーカーなど" className="border p-2 rounded w-full mt-1" value={editingCompany.industry || ""} onChange={(e) => setEditingCompany({ ...editingCompany, industry: e.target.value })} /></div>
               </div>
               <div><label className="block text-sm font-bold text-gray-700">マイページURL</label><input type="text" className="border p-2 rounded w-full" value={editingCompany.mypage_url || ""} onChange={(e) => setEditingCompany({ ...editingCompany, mypage_url: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-2">
@@ -268,6 +253,26 @@ export default function Home() {
           {fullName && <p className="text-sm text-gray-600 mt-1">ようこそ、<span className="font-bold text-blue-600">{fullName}</span> さん</p>}
         </div>
         <button onClick={handleSignOut} className="text-sm text-red-500 underline bg-white px-3 py-1 rounded border hover:bg-gray-50">ログアウト</button>
+      </div>
+
+      {/* ▼▼ 新機能：ダッシュボード（数字パネル） ▼▼ */}
+      <div className="grid grid-cols-4 gap-2 mb-8">
+        <div className="bg-blue-50 p-3 rounded text-center border border-blue-100">
+          <p className="text-xs text-gray-500 font-bold">総エントリー</p>
+          <p className="text-xl font-bold text-blue-600">{totalCount}<span className="text-xs ml-1">社</span></p>
+        </div>
+        <div className="bg-sky-50 p-3 rounded text-center border border-sky-100">
+          <p className="text-xs text-gray-500 font-bold">面接中</p>
+          <p className="text-xl font-bold text-sky-600">{interviewCount}<span className="text-xs ml-1">社</span></p>
+        </div>
+        <div className="bg-pink-50 p-3 rounded text-center border border-pink-100">
+          <p className="text-xs text-gray-500 font-bold">内定</p>
+          <p className="text-xl font-bold text-pink-500">{offerCount}<span className="text-xs ml-1">社</span></p>
+        </div>
+        <div className="bg-yellow-50 p-3 rounded text-center border border-yellow-100">
+          <p className="text-xs text-gray-500 font-bold">第一志望</p>
+          <p className="text-xl font-bold text-yellow-600">{highPriorityActiveCount}<span className="text-xs ml-1">社</span></p>
+        </div>
       </div>
 
       {/* 追加エリア */}
@@ -307,7 +312,6 @@ export default function Home() {
               <input type="date" value={company.nextDate} onChange={(e) => handleDateChange(company.id, e.target.value)} className="text-sm border rounded p-1" />
             </div>
 
-            {/* ▼▼ 修正：ここが星2つになります ▼▼ */}
             <div className="mb-2 text-sm text-orange-400 font-bold">
               志望度: {getPriorityIcon(company.priority)}
             </div>
