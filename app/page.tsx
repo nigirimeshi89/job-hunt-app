@@ -6,6 +6,10 @@ import { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
+// アイコン追加
+import { LayoutDashboard, Briefcase, CheckCircle, Star, LogOut, Plus, Search, User as UserIcon, Calendar as CalendarIcon } from "lucide-react";
+
+import CompanyCard from "../components/CompanyCard";
 
 type Company = {
   id: number;
@@ -25,7 +29,6 @@ type Company = {
 const STATUS_OPTIONS = [
   "未エントリー", "書類選考中", "1次面接", "2次面接", "最終面接", "内定", "お見送り",
 ];
-
 const PRIORITY_OPTIONS = ["高", "中", "低"];
 
 export default function Home() {
@@ -43,7 +46,6 @@ export default function Home() {
 
   const [searchText, setSearchText] = useState("");
   const [filterPriority, setFilterPriority] = useState("すべて");
-
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedDateStr, setSelectedDateStr] = useState<string>("");
 
@@ -177,65 +179,11 @@ export default function Home() {
     setSchedulingCompany(null);
   };
 
-  const getStatusColor = (status: string) => {
-    if (status === "内定") return "border-l-pink-500 bg-pink-50";
-    if (status === "お見送り") return "border-l-slate-400 bg-slate-100 opacity-70";
-    if (status === "最終面接") return "border-l-purple-500 bg-purple-50";
-    return "border-l-blue-500 bg-blue-50";
-  };
-  const getPriorityIcon = (priority: string) => {
-    if (priority === "高") return "⭐⭐⭐";
-    if (priority === "中" || priority === "普通") return "⭐⭐";
-    return "⭐";
-  };
-
-  // ▼▼ 新機能：残り日数を計算する関数 ▼▼
-  const getDaysRemaining = (dateStr: string) => {
-    if (!dateStr) return null;
-
-    // 今日の日付（時間を00:00:00にリセットして日付だけで比較）
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // ターゲットの日付（YYYY-MM-DDを分解してセット）
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const target = new Date(y, m - 1, d); // 月は0始まりなので-1
-
-    // 差分を計算（ミリ秒）
-    const diffTime = target.getTime() - today.getTime();
-    // 日数に変換
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    return diffDays;
-  };
-
-  // ▼▼ 新機能：カウントダウンバッジの見た目を作る関数 ▼▼
-  const CountdownBadge = ({ dateStr }: { dateStr: string }) => {
-    const days = getDaysRemaining(dateStr);
-
-    if (days === null) return null;
-
-    if (days < 0) {
-      return <span className="text-xs bg-gray-200 text-gray-500 px-2 py-1 rounded">終了</span>;
-    }
-    if (days === 0) {
-      return <span className="text-xs bg-red-500 text-white font-bold px-2 py-1 rounded animate-pulse">🔥 今日！</span>;
-    }
-    if (days === 1) {
-      return <span className="text-xs bg-red-100 text-red-600 font-bold px-2 py-1 rounded">あと1日！</span>;
-    }
-    if (days <= 3) {
-      return <span className="text-xs bg-orange-100 text-orange-600 font-bold px-2 py-1 rounded">あと{days}日</span>;
-    }
-    return <span className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded">あと{days}日</span>;
-  };
-
-
   const getTileContent = ({ date, view }: { date: Date; view: string }) => {
     if (view !== "month") return null;
     const dateStr = formatDateToLocal(date);
     const hasEvent = companies.some((c) => c.nextDate === dateStr);
-    return hasEvent ? <div className="h-2 w-2 bg-blue-500 rounded-full mx-auto mt-1"></div> : null;
+    return hasEvent ? <div className="h-1.5 w-1.5 bg-blue-500 rounded-full mx-auto mt-1"></div> : null;
   };
 
   const onCalendarClick = (value: any) => {
@@ -266,17 +214,30 @@ export default function Home() {
 
   const eventsOnSelectedDate = companies.filter(c => c.nextDate === selectedDateStr);
 
+  // ▼▼▼ ログイン画面のデザインもリッチに！ ▼▼▼
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <div className="bg-white p-8 rounded shadow-md w-full max-w-sm">
-          <h1 className="text-2xl font-bold mb-6 text-center">就活アプリにログイン</h1>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-sm border border-white/50">
+          <div className="text-center mb-8">
+            <span className="text-4xl mb-2 block">🎓</span>
+            <h1 className="text-2xl font-bold text-gray-800">就活マネージャー</h1>
+            <p className="text-sm text-gray-500 mt-2">すべての選考を、これひとつで。</p>
+          </div>
           <div className="space-y-4">
-            <input type="email" placeholder="メール" className="border p-2 rounded w-full" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <input type="password" placeholder="パスワード" className="border p-2 rounded w-full" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <button onClick={handleSignIn} disabled={loading} className="bg-blue-600 text-white p-2 rounded w-full font-bold">ログイン</button>
+            <div>
+              <label className="text-xs font-bold text-gray-500 ml-1">メールアドレス</label>
+              <input type="email" placeholder="example@mail.com" className="border p-3 rounded-lg w-full bg-gray-50 focus:bg-white focus:ring-2 ring-blue-200 outline-none transition" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 ml-1">パスワード</label>
+              <input type="password" placeholder="••••••••" className="border p-3 rounded-lg w-full bg-gray-50 focus:bg-white focus:ring-2 ring-blue-200 outline-none transition" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <button onClick={handleSignIn} disabled={loading} className="bg-blue-600 text-white p-3 rounded-lg w-full font-bold shadow-lg hover:shadow-xl hover:bg-blue-700 transition transform hover:-translate-y-0.5">
+              {loading ? "読み込み中..." : "ログインする"}
+            </button>
             <div className="text-center mt-6 pt-4 border-t">
-              <Link href="/signup" className="text-blue-600 font-bold hover:underline">新規登録はこちら</Link>
+              <Link href="/signup" className="text-blue-600 font-bold hover:underline text-sm">新しくアカウントを作る →</Link>
             </div>
           </div>
         </div>
@@ -285,195 +246,199 @@ export default function Home() {
   }
 
   return (
-    <div className="p-8 max-w-2xl mx-auto relative">
+    <div className="min-h-screen bg-slate-50 text-gray-800 font-sans pb-20">
 
-      {/* スケジュール入力モーダル */}
+      {/* モーダル類は変更なし (コード簡略化のため中身は同じとします) */}
       {schedulingCompany && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
-            <h2 className="text-xl font-bold mb-4">📅 {schedulingCompany.name} の日程登録</h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg animate-in fade-in zoom-in duration-200">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Calendar className="text-blue-600" /> 日程登録: {schedulingCompany.name}</h2>
             <div className="space-y-4">
-              <div><label className="block text-sm font-bold text-gray-700">日時</label><input type="date" className="border p-2 rounded w-full" value={schedulingCompany.nextDate || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, nextDate: e.target.value })} /></div>
-              <div><label className="block text-sm font-bold text-gray-700">内容</label><input type="text" placeholder="例：会社説明会、一次面接" className="border p-2 rounded w-full" value={schedulingCompany.event_content || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, event_content: e.target.value })} /></div>
-              <div><label className="block text-sm font-bold text-gray-700">必要事項・持ち物</label><textarea className="border p-2 rounded w-full h-24" placeholder="例：履歴書、筆記用具、私服OK" value={schedulingCompany.event_requirements || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, event_requirements: e.target.value })} /></div>
+              <div><label className="block text-sm font-bold text-gray-600 mb-1">日時</label><input type="date" className="border p-2 rounded w-full" value={schedulingCompany.nextDate || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, nextDate: e.target.value })} /></div>
+              <div><label className="block text-sm font-bold text-gray-600 mb-1">内容</label><input type="text" placeholder="例：会社説明会" className="border p-2 rounded w-full" value={schedulingCompany.event_content || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, event_content: e.target.value })} /></div>
+              <div><label className="block text-sm font-bold text-gray-600 mb-1">持ち物</label><textarea className="border p-2 rounded w-full h-24" value={schedulingCompany.event_requirements || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, event_requirements: e.target.value })} /></div>
               <div className="flex justify-end gap-2 pt-4 border-t">
-                <button onClick={() => setSchedulingCompany(null)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded">キャンセル</button>
-                <button onClick={handleSaveSchedule} className="px-4 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700">保存する</button>
+                <button onClick={() => setSchedulingCompany(null)} className="px-4 py-2 text-gray-500 font-bold hover:bg-gray-100 rounded-lg">キャンセル</button>
+                <button onClick={handleSaveSchedule} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg shadow hover:bg-blue-700">保存</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 詳細メモモーダル */}
       {editingCompany && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">{editingCompany.name} の詳細</h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">📝 詳細メモ: {editingCompany.name}</h2>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700">志望度</label>
-                  <select className="border p-2 rounded w-full mt-1" value={editingCompany.priority || "中"} onChange={(e) => setEditingCompany({ ...editingCompany, priority: e.target.value })}>
-                    {PRIORITY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                  </select>
-                </div>
-                <div><label className="block text-sm font-bold text-gray-700">業界 / タグ</label><input type="text" placeholder="IT, メーカーなど" className="border p-2 rounded w-full mt-1" value={editingCompany.industry || ""} onChange={(e) => setEditingCompany({ ...editingCompany, industry: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <div><label className="block text-xs font-bold text-gray-500 mb-1">志望度</label><select className="border p-2 rounded w-full bg-white" value={editingCompany.priority || "中"} onChange={(e) => setEditingCompany({ ...editingCompany, priority: e.target.value })}>{PRIORITY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select></div>
+                <div><label className="block text-xs font-bold text-gray-500 mb-1">業界</label><input type="text" className="border p-2 rounded w-full" value={editingCompany.industry || ""} onChange={(e) => setEditingCompany({ ...editingCompany, industry: e.target.value })} /></div>
               </div>
-              <div><label className="block text-sm font-bold text-gray-700">マイページURL</label><input type="text" className="border p-2 rounded w-full" value={editingCompany.mypage_url || ""} onChange={(e) => setEditingCompany({ ...editingCompany, mypage_url: e.target.value })} /></div>
+              <div><label className="block text-sm font-bold text-gray-600">マイページURL</label><input type="text" className="border p-2 rounded w-full" value={editingCompany.mypage_url || ""} onChange={(e) => setEditingCompany({ ...editingCompany, mypage_url: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-2">
-                <div><label className="block text-sm font-bold text-gray-700">ID</label><input type="text" className="border p-2 rounded w-full" value={editingCompany.login_id || ""} onChange={(e) => setEditingCompany({ ...editingCompany, login_id: e.target.value })} /></div>
-                <div><label className="block text-sm font-bold text-gray-700">PASS</label><input type="text" className="border p-2 rounded w-full" value={editingCompany.login_password || ""} onChange={(e) => setEditingCompany({ ...editingCompany, login_password: e.target.value })} /></div>
+                <div><label className="block text-sm font-bold text-gray-600">ID</label><input type="text" className="border p-2 rounded w-full" value={editingCompany.login_id || ""} onChange={(e) => setEditingCompany({ ...editingCompany, login_id: e.target.value })} /></div>
+                <div><label className="block text-sm font-bold text-gray-600">PASS</label><input type="text" className="border p-2 rounded w-full" value={editingCompany.login_password || ""} onChange={(e) => setEditingCompany({ ...editingCompany, login_password: e.target.value })} /></div>
               </div>
-              <div><label className="block text-sm font-bold text-gray-700">メモ</label><textarea className="border p-2 rounded w-full h-32" value={editingCompany.memo || ""} onChange={(e) => setEditingCompany({ ...editingCompany, memo: e.target.value })} /></div>
+              <div><label className="block text-sm font-bold text-gray-600">メモ</label><textarea className="border p-2 rounded w-full h-32" value={editingCompany.memo || ""} onChange={(e) => setEditingCompany({ ...editingCompany, memo: e.target.value })} /></div>
               <div className="flex justify-end gap-2 pt-4 border-t">
-                <button onClick={() => setEditingCompany(null)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded">キャンセル</button>
-                <button onClick={handleSaveDetails} className="px-4 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700">保存する</button>
+                <button onClick={() => setEditingCompany(null)} className="px-4 py-2 text-gray-500 font-bold hover:bg-gray-100 rounded-lg">キャンセル</button>
+                <button onClick={handleSaveDetails} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg shadow hover:bg-blue-700">保存</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ヘッダー */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">📅 就活アプリ (Cloud)</h1>
-          {fullName && <p className="text-sm text-gray-600 mt-1">ようこそ、<span className="font-bold text-blue-600">{fullName}</span> さん</p>}
+      {/* ▼▼ ヘッダー（固定） ▼▼ */}
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🎓</span>
+            <h1 className="text-xl font-bold text-gray-800 hidden sm:block">就活マネージャー</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            {fullName && (
+              <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-full">
+                <UserIcon size={16} className="text-gray-500" />
+                <span className="text-sm font-bold text-gray-700">{fullName}</span>
+              </div>
+            )}
+            <button onClick={handleSignOut} className="text-gray-400 hover:text-red-500 transition-colors" title="ログアウト">
+              <LogOut size={20} />
+            </button>
+          </div>
         </div>
-        <button onClick={handleSignOut} className="text-sm text-red-500 underline bg-white px-3 py-1 rounded border hover:bg-gray-50">ログアウト</button>
-      </div>
+      </header>
 
-      {/* ダッシュボード */}
-      <div className="grid grid-cols-4 gap-2 mb-8">
-        <div className="bg-blue-50 p-3 rounded text-center border border-blue-100">
-          <p className="text-xs text-gray-500 font-bold">総エントリー</p>
-          <p className="text-xl font-bold text-blue-600">{totalCount}<span className="text-xs ml-1">社</span></p>
+      <div className="max-w-3xl mx-auto px-4 py-6">
+        {/* ▼▼ ダッシュボード（カード化） ▼▼ */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-2 opacity-10"><LayoutDashboard size={40} /></div>
+            <p className="text-xs text-gray-500 font-bold mb-1">総エントリー</p>
+            <p className="text-2xl font-black text-gray-800">{totalCount}<span className="text-xs font-normal text-gray-400 ml-1">社</span></p>
+          </div>
+          <div className="bg-gradient-to-br from-sky-50 to-white p-4 rounded-xl shadow-sm border border-sky-100 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-2 opacity-10 text-sky-600"><Briefcase size={40} /></div>
+            <p className="text-xs text-sky-600 font-bold mb-1">面接中</p>
+            <p className="text-2xl font-black text-sky-700">{interviewCount}<span className="text-xs font-normal text-sky-400 ml-1">社</span></p>
+          </div>
+          <div className="bg-gradient-to-br from-pink-50 to-white p-4 rounded-xl shadow-sm border border-pink-100 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-2 opacity-10 text-pink-600"><CheckCircle size={40} /></div>
+            <p className="text-xs text-pink-600 font-bold mb-1">内定</p>
+            <p className="text-2xl font-black text-pink-600">{offerCount}<span className="text-xs font-normal text-pink-400 ml-1">社</span></p>
+          </div>
+          <div className="bg-gradient-to-br from-yellow-50 to-white p-4 rounded-xl shadow-sm border border-yellow-100 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-2 opacity-10 text-yellow-600"><Star size={40} /></div>
+            <p className="text-xs text-yellow-600 font-bold mb-1">第一志望 残り</p>
+            <p className="text-2xl font-black text-yellow-600">{highPriorityActiveCount}<span className="text-xs font-normal text-yellow-400 ml-1">社</span></p>
+          </div>
         </div>
-        <div className="bg-sky-50 p-3 rounded text-center border border-sky-100">
-          <p className="text-xs text-gray-500 font-bold">面接中</p>
-          <p className="text-xl font-bold text-sky-600">{interviewCount}<span className="text-xs ml-1">社</span></p>
-        </div>
-        <div className="bg-pink-50 p-3 rounded text-center border border-pink-100">
-          <p className="text-xs text-gray-500 font-bold">内定</p>
-          <p className="text-xl font-bold text-pink-500">{offerCount}<span className="text-xs ml-1">社</span></p>
-        </div>
-        <div className="bg-yellow-50 p-3 rounded text-center border border-yellow-100">
-          <p className="text-xs text-gray-500 font-bold">第一志望</p>
-          <p className="text-xl font-bold text-yellow-600">{highPriorityActiveCount}<span className="text-xs ml-1">社</span></p>
-        </div>
-      </div>
 
-      {/* カレンダー表示 */}
-      <div className="mb-8 flex flex-col md:flex-row gap-6">
-        <div className="p-4 bg-white rounded shadow border border-gray-200 flex-1">
-          <h2 className="text-center font-bold mb-4 text-gray-700">スケジュール</h2>
-          <Calendar
-            locale="ja-JP"
-            value={selectedDate}
-            onClickDay={onCalendarClick}
-            tileContent={getTileContent}
-            className="rounded-lg border-none w-full mx-auto"
-          />
-        </div>
-        <div className="flex-1 bg-white p-4 rounded shadow border border-gray-200 min-h-[300px]">
-          <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4">
-            {selectedDateStr} の予定
-          </h3>
-          {eventsOnSelectedDate.length === 0 ? (
-            <p className="text-gray-400 text-sm">予定はありません</p>
-          ) : (
-            <div className="space-y-4">
-              {eventsOnSelectedDate.map(company => (
-                <div key={company.id} className="bg-blue-50 p-3 rounded border border-blue-100">
-                  <h4 className="font-bold text-blue-700 text-lg mb-1">{company.name}</h4>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded font-bold">内容</span>
-                    <span>{company.event_content || "未定"}</span>
-                  </div>
-                  {company.event_requirements && (
-                    <div className="mt-2 text-sm bg-white p-2 rounded border border-blue-100 text-gray-600">
-                      <p className="font-bold text-xs text-gray-400 mb-1">持ち物・必要事項:</p>
-                      <p className="whitespace-pre-wrap">{company.event_requirements}</p>
-                    </div>
-                  )}
+        {/* カレンダー & 予定詳細 */}
+        <div className="mb-8 grid md:grid-cols-2 gap-6">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <h2 className="text-center font-bold mb-4 text-gray-700 flex items-center justify-center gap-2">
+              <CalendarIcon size={18} /> スケジュール            </h2>
+            <Calendar
+              locale="ja-JP"
+              value={selectedDate}
+              onClickDay={onCalendarClick}
+              tileContent={getTileContent}
+              className="border-none w-full !font-sans"
+            />
+          </div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full">
+            <h3 className="text-md font-bold text-gray-700 border-b border-gray-100 pb-3 mb-3">
+              📅 {selectedDateStr} の予定
+            </h3>
+            <div className="flex-1 overflow-y-auto max-h-[250px] pr-2 custom-scrollbar">
+              {eventsOnSelectedDate.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                  <p className="text-sm">予定はありません</p>
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-3">
+                  {eventsOnSelectedDate.map(company => (
+                    <div key={company.id} className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 hover:bg-blue-50 transition">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        <h4 className="font-bold text-gray-800">{company.name}</h4>
+                      </div>
+                      <p className="text-sm text-blue-700 ml-4 font-medium mb-1">{company.event_content || "予定あり"}</p>
+                      {company.event_requirements && (
+                        <p className="text-xs text-gray-500 ml-4 bg-white p-2 rounded border border-gray-100">
+                          {company.event_requirements}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
-      </div>
 
-      {/* 追加エリア */}
-      <div className="flex gap-2 mb-6 border-b pb-6 items-end">
-        <input type="text" placeholder="企業名" className="border p-2 rounded w-full" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
-        <button onClick={handleAddCompany} className="bg-blue-600 text-white px-4 py-2 rounded font-bold whitespace-nowrap h-[42px]">追加</button>
-      </div>
-
-      {/* 検索・絞り込み */}
-      <div className="mb-6 bg-gray-50 p-4 rounded-lg flex gap-4 flex-wrap">
-        <div className="flex-1">
-          <label className="text-xs text-gray-500 font-bold">キーワード検索</label>
-          <input type="text" placeholder="企業名や業界で検索..." className="border p-2 rounded w-full text-sm" value={searchText} onChange={(e) => setSearchText(e.target.value)} />
+        {/* 追加エリア */}
+        <div className="bg-white p-2 rounded-full shadow-sm border border-gray-200 flex gap-2 mb-8 pl-4">
+          <input
+            type="text"
+            placeholder="新しい企業名を入力..."
+            className="flex-1 bg-transparent outline-none text-sm"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+          />
+          <button
+            onClick={handleAddCompany}
+            className="bg-gray-800 text-white px-6 py-2 rounded-full font-bold text-sm hover:bg-black transition flex items-center gap-2"
+          >
+            <Plus size={16} /> 追加
+          </button>
         </div>
-        <div className="w-32">
-          <label className="text-xs text-gray-500 font-bold">志望度で絞り込み</label>
-          <select className="border p-2 rounded w-full text-sm bg-white" value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
-            <option value="すべて">すべて</option>
+
+        {/* 検索・絞り込み */}
+        <div className="flex gap-4 mb-6 overflow-x-auto pb-2">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="検索..."
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 ring-blue-100 outline-none"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+          </div>
+          <select
+            className="px-4 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:ring-2 ring-blue-100 outline-none cursor-pointer"
+            value={filterPriority}
+            onChange={(e) => setFilterPriority(e.target.value)}
+          >
+            <option value="すべて">全ての志望度</option>
             {PRIORITY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         </div>
-      </div>
 
-      {/* リスト表示 */}
-      <div className="space-y-4">
-        {sortedCompanies.length === 0 && (
-          <p className="text-gray-400 text-center py-8">{companies.length === 0 ? "データがありません" : "条件に一致する企業が見つかりません"}</p>
-        )}
-        {sortedCompanies.map((company) => (
-          <div key={company.id} className={`border border-l-4 p-4 rounded shadow ${getStatusColor(company.status)}`}>
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold">{company.name}</h2>
-                {company.industry && <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{company.industry}</span>}
-              </div>
-
-              <div className="flex items-center gap-2">
-                {/* ▼▼ ここにカウントダウンと日付を表示 ▼▼ */}
-                {company.nextDate ? (
-                  <div className="text-right">
-                    <CountdownBadge dateStr={company.nextDate} />
-                    <div className="text-xs text-gray-500 mt-1">{company.nextDate}</div>
-                  </div>
-                ) : (
-                  <span className="text-xs text-gray-400">未定</span>
-                )}
-
-                <button
-                  onClick={() => setSchedulingCompany(company)}
-                  className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded hover:bg-green-200 font-bold h-8"
-                >
-                  📅 日程入力
-                </button>
-              </div>
-
+        {/* リスト表示 */}
+        <div className="space-y-4">
+          {sortedCompanies.length === 0 && (
+            <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-300">
+              <p className="text-gray-400">データがありません</p>
+              <p className="text-xs text-gray-300 mt-1">上のフォームから企業を追加してください</p>
             </div>
-
-            <div className="mb-2 text-sm text-orange-400 font-bold">
-              志望度: {getPriorityIcon(company.priority)}
-            </div>
-
-            <div className="flex justify-between mt-4">
-              <select value={company.status} onChange={(e) => handleStatusChange(company.id, e.target.value)} className="border rounded p-1 text-sm bg-white">
-                {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-              <div className="flex gap-3">
-                <button onClick={() => setEditingCompany(company)} className="text-blue-600 text-sm hover:underline font-bold">詳細・メモ</button>
-                <button onClick={() => handleDeleteCompany(company.id)} className="text-red-500 text-sm hover:underline">削除</button>
-              </div>
-            </div>
-          </div>
-        ))}
+          )}
+          {sortedCompanies.map((company) => (
+            <CompanyCard
+              key={company.id}
+              company={company}
+              STATUS_OPTIONS={STATUS_OPTIONS}
+              onStatusChange={handleStatusChange}
+              onEdit={setEditingCompany}
+              onSchedule={setSchedulingCompany}
+              onDelete={handleDeleteCompany}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
