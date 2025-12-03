@@ -4,12 +4,17 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { User } from "@supabase/supabase-js";
 import Link from "next/link";
+import Calendar from "react-calendar";
+import "react-calendar/dist/Calendar.css";
 
+// ▼▼ 型定義（イベント内容と必要事項を追加） ▼▼
 type Company = {
   id: number;
   name: string;
   status: string;
-  nextDate: string;
+  nextDate: string;        // 日付 (YYYY-MM-DD)
+  event_content?: string;      // 追加：内容（面接、説明会など）
+  event_requirements?: string; // 追加：必要事項（持ち物など）
   mypage_url?: string;
   login_id?: string;
   login_password?: string;
@@ -33,14 +38,24 @@ export default function Home() {
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companyName, setCompanyName] = useState("");
-  const [nextDate, setNextDate] = useState("");
-  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
 
-  // 検索・絞り込み用
+  // モーダル管理用
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null); // 詳細メモ用
+  const [schedulingCompany, setSchedulingCompany] = useState<Company | null>(null); // ▼ 追加：日程入力用
+
+  // 検索・絞り込み
   const [searchText, setSearchText] = useState("");
   const [filterPriority, setFilterPriority] = useState("すべて");
 
+  // カレンダー用
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(""); // YYYY-MM-DD形式
+
   useEffect(() => {
+    // 今日の日付を文字列にする
+    const today = new Date();
+    setSelectedDateStr(formatDateToLocal(today));
+
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
@@ -64,6 +79,14 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // 日付を「YYYY-MM-DD」形式の文字列にするヘルパー関数
+  const formatDateToLocal = (date: Date) => {
+    const y = date.getFullYear();
+    const m = ("00" + (date.getMonth() + 1)).slice(-2);
+    const d = ("00" + date.getDate()).slice(-2);
+    return `${y}-${m}-${d}`;
+  };
+
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase.from("profiles").select("full_name").eq("id", userId).single();
     if (data) setFullName(data.full_name);
@@ -78,6 +101,8 @@ export default function Home() {
         name: item.name,
         status: item.status,
         nextDate: item.next_date || "",
+        event_content: item.event_content || "",       // 追加
+        event_requirements: item.event_requirements || "", // 追加
         mypage_url: item.mypage_url || "",
         login_id: item.login_id || "",
         login_password: item.login_password || "",
@@ -89,33 +114,32 @@ export default function Home() {
     }
   };
 
+  // --- 認証機能 ---
   const handleSignIn = async () => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) alert(error.message);
     setLoading(false);
   };
+  const handleSignOut = async () => { await supabase.auth.signOut(); };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
-
+  // --- 追加・編集・削除 ---
   const handleAddCompany = async () => {
     if (companyName === "" || !user) return;
     const { data, error } = await supabase
       .from("companies")
-      .insert([{ user_id: user.id, name: companyName, status: "未エントリー", next_date: nextDate, priority: "中" }])
+      .insert([{ user_id: user.id, name: companyName, status: "未エントリー", priority: "中" }])
       .select();
 
     if (error) alert(error.message);
     else {
       // @ts-ignore
       const newCompany: Company = {
-        id: data[0].id, name: data[0].name, status: data[0].status, nextDate: data[0].next_date || "",
-        priority: "中", industry: "", mypage_url: "", login_id: "", login_password: "", memo: ""
+        id: data[0].id, name: data[0].name, status: data[0].status, nextDate: "", priority: "中", industry: "",
+        mypage_url: "", login_id: "", login_password: "", memo: "", event_content: "", event_requirements: ""
       };
       setCompanies([...companies, newCompany]);
-      setCompanyName(""); setNextDate("");
+      setCompanyName("");
     }
   };
 
@@ -126,19 +150,13 @@ export default function Home() {
     if (error) setCompanies(original);
   };
 
-  const handleDateChange = async (id: number, newDate: string) => {
-    const original = [...companies];
-    setCompanies(companies.map(c => c.id === id ? { ...c, nextDate: newDate } : c));
-    const { error } = await supabase.from("companies").update({ next_date: newDate }).eq("id", id);
-    if (error) setCompanies(original);
-  };
-
   const handleDeleteCompany = async (id: number) => {
     if (!confirm("削除しますか？")) return;
     setCompanies(companies.filter(c => c.id !== id));
     await supabase.from("companies").delete().eq("id", id);
   };
 
+  // 詳細メモの保存
   const handleSaveDetails = async () => {
     if (!editingCompany) return;
     setCompanies(companies.map(c => c.id === editingCompany.id ? editingCompany : c));
@@ -154,33 +172,55 @@ export default function Home() {
     setEditingCompany(null);
   };
 
+  // ▼▼ 日程スケジュールの保存 ▼▼
+  const handleSaveSchedule = async () => {
+    if (!schedulingCompany) return;
+    setCompanies(companies.map(c => c.id === schedulingCompany.id ? schedulingCompany : c));
+
+    const { error } = await supabase.from("companies").update({
+      next_date: schedulingCompany.nextDate,
+      event_content: schedulingCompany.event_content,
+      event_requirements: schedulingCompany.event_requirements,
+    }).eq("id", schedulingCompany.id);
+
+    if (error) alert("保存失敗");
+    setSchedulingCompany(null);
+  };
+
   const getStatusColor = (status: string) => {
     if (status === "内定") return "border-l-pink-500 bg-pink-50";
     if (status === "お見送り") return "border-l-slate-400 bg-slate-100 opacity-70";
     if (status === "最終面接") return "border-l-purple-500 bg-purple-50";
     return "border-l-blue-500 bg-blue-50";
   };
-
   const getPriorityIcon = (priority: string) => {
     if (priority === "高") return "⭐⭐⭐";
     if (priority === "中" || priority === "普通") return "⭐⭐";
     return "⭐";
   };
 
-  // ▼▼ 新機能：ダッシュボード集計ロジック ▼▼
-  // 1. エントリー総数（全部）
+  // カレンダー用ロジック
+  const getTileContent = ({ date, view }: { date: Date; view: string }) => {
+    if (view !== "month") return null;
+    const dateStr = formatDateToLocal(date);
+    const hasEvent = companies.some((c) => c.nextDate === dateStr);
+    return hasEvent ? <div className="h-2 w-2 bg-blue-500 rounded-full mx-auto mt-1"></div> : null;
+  };
+
+  // カレンダーの日付クリック時
+  const onCalendarClick = (value: any) => {
+    const clickedDate = value as Date;
+    setSelectedDate(clickedDate);
+    setSelectedDateStr(formatDateToLocal(clickedDate));
+  };
+
+  // ダッシュボード集計
   const totalCount = companies.length;
-
-  // 2. 内定数
   const offerCount = companies.filter(c => c.status === "内定").length;
-
-  // 3. 面接中（ステータスに「面接」が含まれるもの）
   const interviewCount = companies.filter(c => c.status.includes("面接")).length;
-
-  // 4. 第一志望（優先度「高」かつ、まだ終わっていないもの）
   const highPriorityActiveCount = companies.filter(c => c.priority === "高" && c.status !== "お見送り" && c.status !== "内定").length;
 
-  // 検索・絞り込みロジック
+  // フィルタリング
   const filteredCompanies = companies.filter((company) => {
     const searchLower = searchText.toLowerCase();
     const matchName = company.name.toLowerCase().includes(searchLower);
@@ -195,6 +235,9 @@ export default function Home() {
     if (!b.nextDate) return -1;
     return a.nextDate.localeCompare(b.nextDate);
   });
+
+  // ▼▼ 選択された日付の予定を取得 ▼▼
+  const eventsOnSelectedDate = companies.filter(c => c.nextDate === selectedDateStr);
 
   if (!user) {
     return (
@@ -216,7 +259,51 @@ export default function Home() {
 
   return (
     <div className="p-8 max-w-2xl mx-auto relative">
-      {/* モーダル (省略なし) */}
+
+      {/* ▼▼ スケジュール入力モーダル (新規作成) ▼▼ */}
+      {schedulingCompany && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
+            <h2 className="text-xl font-bold mb-4">📅 {schedulingCompany.name} の日程登録</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700">日時</label>
+                <input
+                  type="date"
+                  className="border p-2 rounded w-full"
+                  value={schedulingCompany.nextDate || ""}
+                  onChange={(e) => setSchedulingCompany({ ...schedulingCompany, nextDate: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700">内容</label>
+                <input
+                  type="text"
+                  placeholder="例：会社説明会、一次面接"
+                  className="border p-2 rounded w-full"
+                  value={schedulingCompany.event_content || ""}
+                  onChange={(e) => setSchedulingCompany({ ...schedulingCompany, event_content: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700">必要事項・持ち物</label>
+                <textarea
+                  className="border p-2 rounded w-full h-24"
+                  placeholder="例：履歴書、筆記用具、私服OK"
+                  value={schedulingCompany.event_requirements || ""}
+                  onChange={(e) => setSchedulingCompany({ ...schedulingCompany, event_requirements: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <button onClick={() => setSchedulingCompany(null)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded">キャンセル</button>
+                <button onClick={handleSaveSchedule} className="px-4 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700">保存する</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 詳細メモモーダル (変更なし) */}
       {editingCompany && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -255,7 +342,7 @@ export default function Home() {
         <button onClick={handleSignOut} className="text-sm text-red-500 underline bg-white px-3 py-1 rounded border hover:bg-gray-50">ログアウト</button>
       </div>
 
-      {/* ▼▼ 新機能：ダッシュボード（数字パネル） ▼▼ */}
+      {/* ダッシュボード */}
       <div className="grid grid-cols-4 gap-2 mb-8">
         <div className="bg-blue-50 p-3 rounded text-center border border-blue-100">
           <p className="text-xs text-gray-500 font-bold">総エントリー</p>
@@ -275,10 +362,56 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ▼▼ カレンダー表示エリア ▼▼ */}
+      <div className="mb-8 flex flex-col md:flex-row gap-6">
+        <div className="p-4 bg-white rounded shadow border border-gray-200 flex-1">
+          <h2 className="text-center font-bold mb-4 text-gray-700">スケジュール</h2>
+          <Calendar
+            locale="ja-JP"
+            value={selectedDate}
+            onClickDay={onCalendarClick} // クリックしたら日付を選択
+            tileContent={getTileContent}
+            className="rounded-lg border-none w-full mx-auto"
+          />
+        </div>
+
+        {/* ▼▼ 選択した日の詳細表示エリア ▼▼ */}
+        <div className="flex-1 bg-white p-4 rounded shadow border border-gray-200 min-h-[300px]">
+          <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4">
+            {selectedDateStr} の予定
+          </h3>
+
+          {eventsOnSelectedDate.length === 0 ? (
+            <p className="text-gray-400 text-sm">予定はありません</p>
+          ) : (
+            <div className="space-y-4">
+              {eventsOnSelectedDate.map(company => (
+                <div key={company.id} className="bg-blue-50 p-3 rounded border border-blue-100">
+                  <h4 className="font-bold text-blue-700 text-lg mb-1">{company.name}</h4>
+
+                  {/* 内容 */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded font-bold">内容</span>
+                    <span>{company.event_content || "未定"}</span>
+                  </div>
+
+                  {/* 必要事項 */}
+                  {company.event_requirements && (
+                    <div className="mt-2 text-sm bg-white p-2 rounded border border-blue-100 text-gray-600">
+                      <p className="font-bold text-xs text-gray-400 mb-1">持ち物・必要事項:</p>
+                      <p className="whitespace-pre-wrap">{company.event_requirements}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* 追加エリア */}
       <div className="flex gap-2 mb-6 border-b pb-6 items-end">
         <input type="text" placeholder="企業名" className="border p-2 rounded w-full" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
-        <input type="date" className="border p-2 rounded" value={nextDate} onChange={(e) => setNextDate(e.target.value)} />
         <button onClick={handleAddCompany} className="bg-blue-600 text-white px-4 py-2 rounded font-bold whitespace-nowrap h-[42px]">追加</button>
       </div>
 
@@ -309,7 +442,24 @@ export default function Home() {
                 <h2 className="text-xl font-bold">{company.name}</h2>
                 {company.industry && <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{company.industry}</span>}
               </div>
-              <input type="date" value={company.nextDate} onChange={(e) => handleDateChange(company.id, e.target.value)} className="text-sm border rounded p-1" />
+
+              {/* ▼▼ 日付表示と、日程入力ボタン ▼▼ */}
+              <div className="flex items-center gap-2">
+                {company.nextDate ? (
+                  <span className="text-sm font-bold text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                    {company.nextDate}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">日付未定</span>
+                )}
+                <button
+                  onClick={() => setSchedulingCompany(company)} // 新しいモーダルを開く
+                  className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded hover:bg-green-200 font-bold"
+                >
+                  📅 日程入力
+                </button>
+              </div>
+
             </div>
 
             <div className="mb-2 text-sm text-orange-400 font-bold">
