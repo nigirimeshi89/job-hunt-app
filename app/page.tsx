@@ -184,6 +184,20 @@ export default function Home() {
     const dateStr = formatDateToLocal(date);
     const hasEvent = companies.some((c) => c.nextDate === dateStr);
     return hasEvent ? <div className="h-1.5 w-1.5 bg-blue-500 rounded-full mx-auto mt-1"></div> : null;
+
+  };
+
+  const getTileClassName = ({ date, view }: { date: Date; view: string }) => {
+    if (view !== "month") return "";
+
+    if (formatDateToLocal(date) === selectedDateStr) {
+      return "!text-white font-bold";
+    }
+
+    const day = date.getDay();
+    if (day === 6) return "!text-blue-600 font-bold"; // 土曜日（青）
+    if (day === 0) return "!text-red-600 font-bold";  // 日曜日（赤）
+    return "text-gray-700";
   };
 
   const onCalendarClick = (value: any) => {
@@ -345,8 +359,10 @@ export default function Home() {
               locale="ja-JP"
               value={selectedDate}
               onClickDay={onCalendarClick}
-              tileContent={getTileContent}
+              tileContent={getTileContent} // 👈 さっきの「青い点」の設定
               className="border-none w-full !font-sans"
+              calendarType="gregory"
+              tileClassName={getTileClassName} // 👈 これを追加！「文字色」の設定
             />
           </div>
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full">
