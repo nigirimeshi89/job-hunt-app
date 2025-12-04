@@ -29,7 +29,6 @@ export default function CompanyCard({ company, STATUS_OPTIONS, onStatusChange, o
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            // ダークモード用の色（dark:〜）を追加
             case "内定": return "bg-pink-50 border-pink-200 text-pink-700 dark:bg-pink-900/30 dark:border-pink-800 dark:text-pink-300";
             case "お見送り": return "bg-gray-100 border-gray-200 text-gray-500 opacity-80 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400";
             case "最終面接": return "bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-300";
@@ -67,7 +66,7 @@ export default function CompanyCard({ company, STATUS_OPTIONS, onStatusChange, o
         else if (days <= 3) { badgeStyle = "bg-orange-100 text-orange-700 font-bold dark:bg-orange-900/50 dark:text-orange-300"; }
 
         return (
-            <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${badgeStyle}`}>
+            <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 whitespace-nowrap ${badgeStyle}`}>
                 <CalendarDays size={12} />
                 {text}
             </span>
@@ -75,16 +74,19 @@ export default function CompanyCard({ company, STATUS_OPTIONS, onStatusChange, o
     };
 
     return (
-        // カード自体の背景色を切り替え (white -> slate-800)
         <div className={`group relative border rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-300 bg-white dark:bg-slate-800 dark:border-slate-700`}>
-            <div className="flex justify-between items-start mb-3">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+
+            {/* ▼▼▼ 修正ポイント：flexレイアウトを調整 ▼▼▼ */}
+            <div className="flex justify-between items-start mb-3 gap-4">
+
+                {/* 左側：名前エリア（幅を譲る設定 min-w-0 flex-1） */}
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate max-w-full">
                             {company.name}
                         </h2>
                         {company.industry && (
-                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300">
+                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 whitespace-nowrap">
                                 {company.industry}
                             </span>
                         )}
@@ -95,14 +97,15 @@ export default function CompanyCard({ company, STATUS_OPTIONS, onStatusChange, o
                     </div>
                 </div>
 
-                <div className="flex flex-col items-end gap-1">
+                {/* 右側：カウントダウン（絶対に縮まない設定 flex-shrink-0） */}
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
                     {company.nextDate ? (
                         <>
                             <CountdownBadge dateStr={company.nextDate} />
                             <span className="text-xs text-gray-400 font-mono mt-1 dark:text-gray-500">{company.nextDate}</span>
                         </>
                     ) : (
-                        <span className="text-xs text-gray-300 bg-gray-50 px-2 py-1 rounded-full dark:bg-slate-700 dark:text-gray-500">日程未定</span>
+                        <span className="text-xs text-gray-300 bg-gray-50 px-2 py-1 rounded-full dark:bg-slate-700 dark:text-gray-500 whitespace-nowrap">日程未定</span>
                     )}
                 </div>
             </div>
