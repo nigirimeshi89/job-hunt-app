@@ -4,14 +4,14 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { User } from "@supabase/supabase-js";
 import Link from "next/link";
-import Calendar from "react-calendar";
-import "react-calendar/dist/Calendar.css";
-import { LogOut, Plus, Search, User as UserIcon, Calendar as CalendarIcon, Sun, Moon, Clock, Edit2, Trash2, Bell, RefreshCw } from "lucide-react";
+// カレンダー関連のインポートは CalendarView に移動したので削除
+import { LogOut, Plus, Search, User as UserIcon, Bell, RefreshCw } from "lucide-react";
 
 import CompanyCard from "../components/CompanyCard";
 import Dashboard from "../components/Dashboard";
-import ScheduleModal from "../components/ScheduleModal"; // 👈 追加
-import DetailModal from "../components/DetailModal";     // 👈 追加
+import ScheduleModal from "../components/ScheduleModal";
+import DetailModal from "../components/DetailModal";
+import CalendarView from "../components/CalendarView"; // 👈 追加
 
 type Company = {
   id: number;
@@ -60,16 +60,12 @@ export default function Home() {
   const [searchText, setSearchText] = useState("");
   const [filterPriority, setFilterPriority] = useState("すべて");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedDateStr, setSelectedDateStr] = useState<string>("");
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [checkingMail, setCheckingMail] = useState(false);
 
   useEffect(() => {
-    const today = new Date();
-    setSelectedDateStr(formatDateToLocal(today));
-
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
@@ -95,13 +91,6 @@ export default function Home() {
     });
     return () => subscription.unsubscribe();
   }, []);
-
-  const formatDateToLocal = (date: Date) => {
-    const y = date.getFullYear();
-    const m = ("00" + (date.getMonth() + 1)).slice(-2);
-    const d = ("00" + date.getDate()).slice(-2);
-    return `${y}-${m}-${d}`;
-  };
 
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase.from("profiles").select("full_name").eq("id", userId).single();
@@ -306,7 +295,6 @@ export default function Home() {
     if (!schedulingCompany) return;
     const companyToSave = schedulingCompany;
     setCompanies(companies.map(c => c.id === companyToSave.id ? companyToSave : c));
-
     const { error } = await supabase.from("companies").update({
       next_date: companyToSave.nextDate,
       next_time: companyToSave.nextTime,
@@ -314,7 +302,6 @@ export default function Home() {
       event_content: companyToSave.event_content,
       event_requirements: companyToSave.event_requirements,
     }).eq("id", companyToSave.id);
-
     if (error) alert("保存失敗");
     setSchedulingCompany(null);
   };
@@ -331,28 +318,6 @@ export default function Home() {
       event_requirements: null,
     }).eq("id", company.id);
     if (error) alert("削除失敗");
-  };
-
-  const getTileContent = ({ date, view }: { date: Date; view: string }) => {
-    if (view !== "month") return null;
-    const dateStr = formatDateToLocal(date);
-    const hasEvent = companies.some((c) => c.nextDate === dateStr);
-    return hasEvent ? <div className="h-1.5 w-1.5 bg-blue-500 rounded-full mx-auto mt-1"></div> : null;
-  };
-
-  const getTileClassName = ({ date, view }: { date: Date; view: string }) => {
-    if (view !== "month") return "";
-    if (formatDateToLocal(date) === selectedDateStr) return "!text-white font-bold";
-    const day = date.getDay();
-    if (day === 6) return "!text-blue-600 font-bold dark:!text-blue-400";
-    if (day === 0) return "!text-red-600 font-bold dark:!text-red-400";
-    return "text-gray-700 dark:text-gray-300";
-  };
-
-  const onCalendarClick = (value: any) => {
-    const clickedDate = value as Date;
-    setSelectedDate(clickedDate);
-    setSelectedDateStr(formatDateToLocal(clickedDate));
   };
 
   const totalCount = companies.length;
@@ -374,15 +339,6 @@ export default function Home() {
     if (!b.nextDate) return -1;
     return a.nextDate.localeCompare(b.nextDate);
   });
-
-  const eventsOnSelectedDate = companies
-    .filter(c => c.nextDate === selectedDateStr)
-    .sort((a, b) => {
-      if (!a.nextTime && !b.nextTime) return 0;
-      if (!a.nextTime) return 1;
-      if (!b.nextTime) return -1;
-      return a.nextTime!.localeCompare(b.nextTime!);
-    });
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
@@ -436,7 +392,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 text-gray-800 font-sans pb-20 dark:bg-slate-950 dark:text-gray-200 overflow-x-hidden w-full">
 
-      {/* モーダル部品の使用 */}
+      {/* モーダル類 */}
       <ScheduleModal
         isOpen={!!schedulingCompany}
         company={schedulingCompany}
@@ -524,7 +480,7 @@ export default function Home() {
 
       <div className="max-w-3xl mx-auto px-4 py-6">
 
-        {/* ダッシュボード部品の使用 */}
+        {/* ダッシュボード */}
         <Dashboard
           totalCount={totalCount}
           interviewCount={interviewCount}
@@ -532,71 +488,14 @@ export default function Home() {
           highPriorityActiveCount={highPriorityActiveCount}
         />
 
-        {/* カレンダー & 予定詳細 */}
-        <div className="mb-8 flex flex-col md:grid md:grid-cols-2 gap-6">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 dark:bg-slate-800 dark:border-slate-700 w-full overflow-hidden">
-            <h2 className="text-center font-bold mb-4 text-gray-700 flex items-center justify-center gap-2 dark:text-white">
-              <CalendarIcon size={18} /> スケジュール
-            </h2>
-            <div className="dark:text-white w-full">
-              <Calendar
-                locale="ja-JP"
-                value={selectedDate}
-                onClickDay={onCalendarClick}
-                tileContent={getTileContent}
-                tileClassName={getTileClassName}
-                className="border-none w-full !font-sans dark:!bg-slate-800 dark:!text-white"
-                calendarType="gregory"
-                formatDay={(locale, date) => date.getDate().toString()}
-              />
-            </div>
-          </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full dark:bg-slate-800 dark:border-slate-700">
-            <h3 className="text-md font-bold text-gray-700 border-b border-gray-100 pb-3 mb-3 dark:text-white dark:border-slate-700">
-              📅 {selectedDateStr} の予定
-            </h3>
-            <div className="flex-1 overflow-y-auto max-h-[250px] pr-2 custom-scrollbar">
-              {eventsOnSelectedDate.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                  <p className="text-sm">予定はありません</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {eventsOnSelectedDate.map(company => (
-                    <div key={company.id} className="group relative bg-blue-50/50 p-3 rounded-lg border border-blue-100 hover:bg-blue-50 transition dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-slate-600">
-
-                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setSchedulingCompany(company)} className="p-1.5 bg-white text-blue-600 rounded shadow hover:bg-blue-50 dark:bg-slate-800 dark:text-blue-400"><Edit2 size={14} /></button>
-                        <button onClick={() => handleClearSchedule(company)} className="p-1.5 bg-white text-red-500 rounded shadow hover:bg-red-50 dark:bg-slate-800 dark:text-red-400"><Trash2 size={14} /></button>
-                      </div>
-
-                      <div className="flex flex-col gap-1 mb-1">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
-                          <h4 className="font-bold text-gray-800 dark:text-white truncate">{company.name}</h4>
-                        </div>
-                        {company.nextTime && (
-                          <div className="flex items-center gap-1 text-xs text-gray-500 ml-4 mb-1 dark:text-gray-400">
-                            <Clock size={12} />
-                            <span>{company.nextTime} {company.nextEndTime && `〜 ${company.nextEndTime}`}</span>
-                          </div>
-                        )}
-                        <p className="text-sm text-blue-700 ml-4 font-medium dark:text-blue-300 truncate">
-                          {company.event_content || "予定あり"}
-                        </p>
-                      </div>
-                      {company.event_requirements && (
-                        <p className="text-xs text-gray-500 ml-4 mt-1 bg-white p-2 rounded border border-gray-100 dark:bg-slate-800 dark:border-slate-600 dark:text-gray-300">
-                          {company.event_requirements}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* カレンダー & 予定リスト */}
+        <CalendarView
+          companies={companies}
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          onEditSchedule={setSchedulingCompany}
+          onClearSchedule={handleClearSchedule}
+        />
 
         {/* 追加エリア */}
         <div className="bg-white p-2 rounded-full shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-2 mb-8 pl-4 dark:bg-slate-800 dark:border-slate-700">
