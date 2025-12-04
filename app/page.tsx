@@ -6,9 +6,7 @@ import { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
-// ▼▼ Bell（ベル）アイコンを追加 ▼▼
 import { LayoutDashboard, Briefcase, CheckCircle, Star, LogOut, Plus, Search, User as UserIcon, Calendar as CalendarIcon, Sun, Moon, Clock, Edit2, Trash2, Bell } from "lucide-react";
-
 import CompanyCard from "../components/CompanyCard";
 
 type Company = {
@@ -26,10 +24,10 @@ type Company = {
   memo?: string;
   priority: string;
   industry?: string;
-  contact_email?: string; // ▼ 追加：企業のメールアドレス
+  contact_email?: string;
 };
 
-// ▼▼ 新しい型：通知 ▼▼
+// 通知の型
 type Notification = {
   id: number;
   message: string;
@@ -61,9 +59,8 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedDateStr, setSelectedDateStr] = useState<string>("");
 
-  // ▼▼ 通知機能用の変数 ▼▼
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [showNotifications, setShowNotifications] = useState(false); // リストを表示するかどうか
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const today = new Date();
@@ -75,7 +72,7 @@ export default function Home() {
       if (session?.user) {
         fetchCompanies(session.user.id);
         fetchProfile(session.user.id);
-        fetchNotifications(session.user.id); // ▼ 通知も取得
+        fetchNotifications(session.user.id);
       }
     };
     checkUser();
@@ -85,7 +82,7 @@ export default function Home() {
       if (session?.user) {
         fetchCompanies(session.user.id);
         fetchProfile(session.user.id);
-        fetchNotifications(session.user.id); // ▼ 通知も取得
+        fetchNotifications(session.user.id);
       } else {
         setCompanies([]);
         setFullName("");
@@ -126,28 +123,19 @@ export default function Home() {
         memo: item.memo || "",
         priority: (item.priority === "普通" ? "中" : item.priority) || "中",
         industry: item.industry || "",
-        contact_email: item.contact_email || "", // ▼ 追加
+        contact_email: item.contact_email || "",
       }));
       setCompanies(formattedData);
     }
   };
 
-  // ▼▼ 通知を取得する関数 ▼▼
   const fetchNotifications = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("notifications")
-      .select("*")
-      .order("created_at", { ascending: false }); // 新しい順
-
-    if (error) console.error("通知エラー:", error);
-    else setNotifications(data || []);
+    const { data, error } = await supabase.from("notifications").select("*").order("created_at", { ascending: false });
+    if (!error) setNotifications(data || []);
   };
 
-  // ▼▼ 通知を既読にする関数 ▼▼
   const handleReadNotification = async (noteId: number) => {
-    // 画面上で既読にする
     setNotifications(notifications.map(n => n.id === noteId ? { ...n, is_read: true } : n));
-    // DB更新
     await supabase.from("notifications").update({ is_read: true }).eq("id", noteId);
   };
 
@@ -157,6 +145,23 @@ export default function Home() {
     if (error) alert(error.message);
     setLoading(false);
   };
+
+  // ▼▼ 新機能：Googleログイン処理 ▼▼
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: 'http://localhost:3000', // ログイン後に戻ってくる場所
+      }
+    });
+    if (error) {
+      alert(error.message);
+      setLoading(false);
+    }
+    // 成功すると自動でGoogleの画面に飛びます
+  };
+
   const handleSignOut = async () => { await supabase.auth.signOut(); };
 
   const handleAddCompany = async () => {
@@ -177,14 +182,13 @@ export default function Home() {
       setCompanies([...companies, newCompany]);
       setCompanyName("");
 
-      // ▼▼ テスト用：企業追加時に自動で通知を作成する ▼▼
       await supabase.from("notifications").insert([{
         user_id: user.id,
         company_id: newCompanyId,
         message: `「${companyName}」をリストに追加しました！詳細設定からメールアドレスを登録しましょう。`,
         is_read: false
       }]);
-      fetchNotifications(user.id); // 通知リストを再取得
+      fetchNotifications(user.id);
     }
   };
 
@@ -211,7 +215,7 @@ export default function Home() {
       memo: editingCompany.memo,
       priority: editingCompany.priority,
       industry: editingCompany.industry,
-      contact_email: editingCompany.contact_email, // ▼ 保存
+      contact_email: editingCompany.contact_email,
     }).eq("id", editingCompany.id);
     if (error) alert("保存失敗");
     setEditingCompany(null);
@@ -221,7 +225,6 @@ export default function Home() {
     if (!schedulingCompany) return;
     const companyToSave = schedulingCompany;
     setCompanies(companies.map(c => c.id === companyToSave.id ? companyToSave : c));
-
     const { error } = await supabase.from("companies").update({
       next_date: companyToSave.nextDate,
       next_time: companyToSave.nextTime,
@@ -229,7 +232,6 @@ export default function Home() {
       event_content: companyToSave.event_content,
       event_requirements: companyToSave.event_requirements,
     }).eq("id", companyToSave.id);
-
     if (error) alert("保存失敗");
     setSchedulingCompany(null);
   };
@@ -299,9 +301,9 @@ export default function Home() {
       return a.nextTime!.localeCompare(b.nextTime!);
     });
 
-  // 未読の通知数
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
+  // ▼▼▼ ログイン画面（Googleボタン追加） ▼▼▼
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 dark:from-slate-900 dark:to-slate-800">
@@ -312,6 +314,41 @@ export default function Home() {
             <p className="text-sm text-gray-500 mt-2 dark:text-gray-400">すべての選考を、これひとつで。</p>
           </div>
           <div className="space-y-4">
+
+            {/* ▼ Googleでログインボタン ▼ */}
+            <button
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 w-full p-3 rounded-lg border border-gray-300 bg-white text-gray-700 font-bold hover:bg-gray-50 transition transform hover:-translate-y-0.5 dark:bg-white dark:text-gray-800"
+            >
+              {/* GoogleのGアイコン（SVG） */}
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  fill="#4285F4"
+                />
+                <path
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  fill="#34A853"
+                />
+                <path
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z"
+                  fill="#FBBC05"
+                />
+                <path
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  fill="#EA4335"
+                />
+              </svg>
+              Googleでログイン
+            </button>
+
+            <div className="relative flex items-center justify-center my-4">
+              <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-300"></span></div>
+              <span className="relative bg-white px-2 text-xs text-gray-500 dark:bg-slate-800">または</span>
+            </div>
+
+            {/* 今までのメールログイン */}
             <div>
               <label className="text-xs font-bold text-gray-500 ml-1 dark:text-gray-400">メールアドレス</label>
               <input type="email" placeholder="example@mail.com" className="border p-3 rounded-lg w-full bg-gray-50 focus:bg-white focus:ring-2 ring-blue-200 outline-none transition dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -332,10 +369,10 @@ export default function Home() {
     );
   }
 
+  // ... (残りの部分は変更なし) ...
   return (
     <div className="min-h-screen bg-slate-50 text-gray-800 font-sans pb-20 dark:bg-slate-950 dark:text-gray-200 overflow-x-hidden w-full">
-
-      {/* モーダル類 */}
+      {/* (省略：モーダルやヘッダーなどは以前と同じ) */}
       {schedulingCompany && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg mx-4 dark:bg-slate-800 dark:border dark:border-slate-700">
@@ -367,7 +404,6 @@ export default function Home() {
                 <div><label className="block text-xs font-bold text-gray-500 mb-1 dark:text-gray-400">業界</label><input type="text" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={editingCompany.industry || ""} onChange={(e) => setEditingCompany({ ...editingCompany, industry: e.target.value })} /></div>
               </div>
 
-              {/* ▼▼ メールアドレス入力欄を追加 ▼▼ */}
               <div>
                 <label className="block text-sm font-bold text-gray-600 dark:text-gray-400">企業からのメールアドレス (Gmail検索用)</label>
                 <input type="email" placeholder="hr@company.com" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={editingCompany.contact_email || ""} onChange={(e) => setEditingCompany({ ...editingCompany, contact_email: e.target.value })} />
@@ -397,7 +433,6 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
 
-            {/* ▼▼ 通知ベルアイコン（未読がある場合は赤丸） ▼▼ */}
             <div className="relative">
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
@@ -411,7 +446,6 @@ export default function Home() {
                 )}
               </button>
 
-              {/* 通知リスト（ポップアップ） */}
               {showNotifications && (
                 <div className="absolute right-0 top-10 w-80 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50 dark:bg-slate-800 dark:border-slate-600">
                   <div className="p-3 bg-gray-50 border-b border-gray-100 font-bold text-sm text-gray-700 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-200">
@@ -450,7 +484,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 以下、ダッシュボードなどはそのまま */}
       <div className="max-w-3xl mx-auto px-4 py-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-8">
           <div className="bg-white p-3 md:p-4 rounded-xl shadow-sm border border-blue-100 relative overflow-hidden dark:bg-slate-800 dark:border-slate-700">
