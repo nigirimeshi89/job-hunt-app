@@ -6,9 +6,12 @@ import { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
-import { LayoutDashboard, Briefcase, CheckCircle, Star, LogOut, Plus, Search, User as UserIcon, Calendar as CalendarIcon, Sun, Moon, Clock, Edit2, Trash2, Bell, RefreshCw } from "lucide-react";
+import { LogOut, Plus, Search, User as UserIcon, Calendar as CalendarIcon, Sun, Moon, Clock, Edit2, Trash2, Bell, RefreshCw } from "lucide-react";
 
 import CompanyCard from "../components/CompanyCard";
+import Dashboard from "../components/Dashboard";
+import ScheduleModal from "../components/ScheduleModal"; // 👈 追加
+import DetailModal from "../components/DetailModal";     // 👈 追加
 
 type Company = {
   id: number;
@@ -61,7 +64,7 @@ export default function Home() {
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [checkingMail, setCheckingMail] = useState(false); // メール確認中のフラグ
+  const [checkingMail, setCheckingMail] = useState(false);
 
   useEffect(() => {
     const today = new Date();
@@ -140,51 +143,40 @@ export default function Home() {
     await supabase.from("notifications").update({ is_read: true }).eq("id", noteId);
   };
 
-  // ▼▼ デバッグ用：何が起きているか全部喋るバージョン ▼▼
   const checkGmail = async () => {
     setCheckingMail(true);
     console.log("🚀 メール確認を開始します...");
 
     try {
-      // 1. トークンの確認
       const { data: { session } } = await supabase.auth.getSession();
       const providerToken = session?.provider_token;
 
-      console.log("🔑 トークン状態:", providerToken ? "あり" : "なし");
-
       if (!providerToken) {
-        alert("Google連携の期限切れか、権限がありません。一度ログアウトして、再度「Googleでログイン」してください（その際、Gmailの許可にチェックを入れてください）。");
+        alert("Google連携の期限切れか、権限がありません。一度ログアウトして、再度「Googleでログイン」してください。");
         setCheckingMail(false);
         return;
       }
 
-      // 2. 未読メールの検索
-      console.log("📨 Gmailに問い合わせ中...");
       const listRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=10", {
         headers: { Authorization: `Bearer ${providerToken}` }
       });
 
       if (!listRes.ok) {
-        console.error("❌ Gmail API エラー:", listRes.status, listRes.statusText);
         alert("Gmailへのアクセスに失敗しました。ログアウトして権限を確認してください。");
         setCheckingMail(false);
         return;
       }
 
       const listData = await listRes.json();
-      console.log("📨 取得したデータ:", listData);
 
       if (!listData.messages || listData.messages.length === 0) {
-        console.log("📭 未読メールは0件でした");
         alert("新しい未読メールはありませんでした。");
         setCheckingMail(false);
         return;
       }
 
-      console.log(`🔎 ${listData.messages.length}件の未読メールを解析します...`);
       let newCount = 0;
 
-      // 3. 詳細チェック
       for (const msg of listData.messages) {
         const detailRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`, {
           headers: { Authorization: `Bearer ${providerToken}` }
@@ -195,15 +187,9 @@ export default function Home() {
         const fromHeader = headers.find((h: any) => h.name === "From")?.value || "";
         const subject = headers.find((h: any) => h.name === "Subject")?.value || "(件名なし)";
 
-        console.log(`📩 解析中: From=[${fromHeader}] Subject=[${subject}]`);
-
-        // 登録企業との照合
         const matchedCompany = companies.find(c => {
           if (!c.contact_email) return false;
-          // 大文字小文字を無視してチェック
-          const isMatch = fromHeader.toLowerCase().includes(c.contact_email.toLowerCase());
-          if (isMatch) console.log(`🎉 ヒット！企業ID: ${c.id} (${c.name})`);
-          return isMatch;
+          return fromHeader.toLowerCase().includes(c.contact_email.toLowerCase());
         });
 
         if (matchedCompany) {
@@ -221,12 +207,11 @@ export default function Home() {
         alert(`${newCount}件の企業メールを見つけました！通知を確認してください。`);
         fetchNotifications(user!.id);
       } else {
-        console.log("😢 登録済み企業のメールアドレスと一致するものは見つかりませんでした。");
-        alert("未読メールはありましたが、登録企業のメールアドレスと一致しませんでした。\n（詳細メモのメールアドレスが正しいか確認してください）");
+        alert("未読メールはありましたが、登録企業のメールアドレスと一致しませんでした。");
       }
 
     } catch (e: any) {
-      console.error("💥 重大なエラー:", e);
+      console.error(e);
       alert("エラーが発生しました: " + e.message);
     }
     setCheckingMail(false);
@@ -239,14 +224,12 @@ export default function Home() {
     setLoading(false);
   };
 
-  // ▼▼ Googleログイン（権限を追加！） ▼▼
   const handleGoogleSignIn = async () => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: 'http://localhost:3000',
-        // Gmailを見るための「合言葉（スコープ）」を追加
         scopes: 'https://www.googleapis.com/auth/gmail.readonly',
         queryParams: {
           access_type: 'offline',
@@ -279,6 +262,14 @@ export default function Home() {
       };
       setCompanies([...companies, newCompany]);
       setCompanyName("");
+
+      await supabase.from("notifications").insert([{
+        user_id: user.id,
+        company_id: newCompanyId,
+        message: `「${companyName}」をリストに追加しました！詳細設定からメールアドレスを登録しましょう。`,
+        is_read: false
+      }]);
+      fetchNotifications(user.id);
     }
   };
 
@@ -315,6 +306,7 @@ export default function Home() {
     if (!schedulingCompany) return;
     const companyToSave = schedulingCompany;
     setCompanies(companies.map(c => c.id === companyToSave.id ? companyToSave : c));
+
     const { error } = await supabase.from("companies").update({
       next_date: companyToSave.nextDate,
       next_time: companyToSave.nextTime,
@@ -322,6 +314,7 @@ export default function Home() {
       event_content: companyToSave.event_content,
       event_requirements: companyToSave.event_requirements,
     }).eq("id", companyToSave.id);
+
     if (error) alert("保存失敗");
     setSchedulingCompany(null);
   };
@@ -443,57 +436,22 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 text-gray-800 font-sans pb-20 dark:bg-slate-950 dark:text-gray-200 overflow-x-hidden w-full">
 
-      {/* モーダル類は変更なし */}
-      {schedulingCompany && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg mx-4 dark:bg-slate-800 dark:border dark:border-slate-700">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 dark:text-white"><CalendarIcon className="text-blue-600 dark:text-blue-400" /> 日程登録: {schedulingCompany.name}</h2>
-            <div className="space-y-4">
-              <div><label className="block text-sm font-bold text-gray-600 mb-1 dark:text-gray-400">日時</label><input type="date" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={schedulingCompany.nextDate || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, nextDate: e.target.value })} /></div>
-              <div className="grid grid-cols-2 gap-4 items-end">
-                <div><label className="block text-sm font-bold text-gray-600 mb-1 dark:text-gray-400">開始時間</label><input type="time" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={schedulingCompany.nextTime || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, nextTime: e.target.value })} /></div>
-                <div className="flex items-center gap-2"><span className="text-gray-400 mb-2">〜</span><div className="w-full"><label className="block text-sm font-bold text-gray-600 mb-1 dark:text-gray-400">終了時間</label><input type="time" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={schedulingCompany.nextEndTime || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, nextEndTime: e.target.value })} /></div></div>
-              </div>
-              <div><label className="block text-sm font-bold text-gray-600 mb-1 dark:text-gray-400">内容</label><input type="text" placeholder="例：会社説明会" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={schedulingCompany.event_content || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, event_content: e.target.value })} /></div>
-              <div><label className="block text-sm font-bold text-gray-600 mb-1 dark:text-gray-400">持ち物</label><textarea className="border p-2 rounded w-full h-24 dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={schedulingCompany.event_requirements || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, event_requirements: e.target.value })} /></div>
-              <div className="flex justify-end gap-2 pt-4 border-t dark:border-slate-700">
-                <button onClick={() => setSchedulingCompany(null)} className="px-4 py-2 text-gray-500 font-bold hover:bg-gray-100 rounded-lg dark:text-gray-400 dark:hover:bg-slate-700">キャンセル</button>
-                <button onClick={handleSaveSchedule} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg shadow hover:bg-blue-700">保存</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* モーダル部品の使用 */}
+      <ScheduleModal
+        isOpen={!!schedulingCompany}
+        company={schedulingCompany}
+        onClose={() => setSchedulingCompany(null)}
+        onSave={handleSaveSchedule}
+        onChange={setSchedulingCompany}
+      />
 
-      {editingCompany && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto dark:bg-slate-800 dark:border dark:border-slate-700">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 dark:text-white">📝 詳細メモ: {editingCompany.name}</h2>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100 dark:bg-slate-900 dark:border-slate-700">
-                <div><label className="block text-xs font-bold text-gray-500 mb-1 dark:text-gray-400">志望度</label><select className="border p-2 rounded w-full bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={editingCompany.priority || "中"} onChange={(e) => setEditingCompany({ ...editingCompany, priority: e.target.value })}>{PRIORITY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select></div>
-                <div><label className="block text-xs font-bold text-gray-500 mb-1 dark:text-gray-400">業界</label><input type="text" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={editingCompany.industry || ""} onChange={(e) => setEditingCompany({ ...editingCompany, industry: e.target.value })} /></div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-gray-600 dark:text-gray-400">企業からのメールアドレス (Gmail検索用)</label>
-                <input type="email" placeholder="hr@company.com" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={editingCompany.contact_email || ""} onChange={(e) => setEditingCompany({ ...editingCompany, contact_email: e.target.value })} />
-              </div>
-
-              <div><label className="block text-sm font-bold text-gray-600 dark:text-gray-400">マイページURL</label><input type="text" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={editingCompany.mypage_url || ""} onChange={(e) => setEditingCompany({ ...editingCompany, mypage_url: e.target.value })} /></div>
-              <div className="grid grid-cols-2 gap-2">
-                <div><label className="block text-sm font-bold text-gray-600 dark:text-gray-400">ID</label><input type="text" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={editingCompany.login_id || ""} onChange={(e) => setEditingCompany({ ...editingCompany, login_id: e.target.value })} /></div>
-                <div><label className="block text-sm font-bold text-gray-600 dark:text-gray-400">PASS</label><input type="text" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={editingCompany.login_password || ""} onChange={(e) => setEditingCompany({ ...editingCompany, login_password: e.target.value })} /></div>
-              </div>
-              <div><label className="block text-sm font-bold text-gray-600 dark:text-gray-400">メモ</label><textarea className="border p-2 rounded w-full h-32 dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={editingCompany.memo || ""} onChange={(e) => setEditingCompany({ ...editingCompany, memo: e.target.value })} /></div>
-              <div className="flex justify-end gap-2 pt-4 border-t dark:border-slate-700">
-                <button onClick={() => setEditingCompany(null)} className="px-4 py-2 text-gray-500 font-bold hover:bg-gray-100 rounded-lg dark:text-gray-400 dark:hover:bg-slate-700">キャンセル</button>
-                <button onClick={handleSaveDetails} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg shadow hover:bg-blue-700">保存</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <DetailModal
+        isOpen={!!editingCompany}
+        company={editingCompany}
+        onClose={() => setEditingCompany(null)}
+        onSave={handleSaveDetails}
+        onChange={setEditingCompany}
+      />
 
       {/* ヘッダー */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm dark:bg-slate-900/80 dark:border-slate-800">
@@ -504,7 +462,6 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
 
-            {/* ▼▼ メール確認ボタン（手動）を追加！ ▼▼ */}
             <button
               onClick={checkGmail}
               disabled={checkingMail}
@@ -565,31 +522,17 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 以下、ダッシュボードなどはそのまま */}
       <div className="max-w-3xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-8">
-          <div className="bg-white p-3 md:p-4 rounded-xl shadow-sm border border-blue-100 relative overflow-hidden dark:bg-slate-800 dark:border-slate-700">
-            <div className="absolute top-0 right-0 p-2 opacity-10 dark:opacity-30 dark:text-white"><LayoutDashboard size={40} /></div>
-            <p className="text-xs text-gray-500 font-bold mb-1 dark:text-gray-400">総エントリー</p>
-            <p className="text-xl md:text-2xl font-black text-gray-800 dark:text-white">{totalCount}<span className="text-xs font-normal text-gray-400 ml-1">社</span></p>
-          </div>
-          <div className="bg-gradient-to-br from-sky-50 to-white p-3 md:p-4 rounded-xl shadow-sm border border-sky-100 relative overflow-hidden dark:from-slate-800 dark:to-slate-800 dark:border-slate-700">
-            <div className="absolute top-0 right-0 p-2 opacity-10 text-sky-600 dark:opacity-30 dark:text-sky-400"><Briefcase size={40} /></div>
-            <p className="text-xs text-sky-600 font-bold mb-1 dark:text-sky-400">面接中</p>
-            <p className="text-xl md:text-2xl font-black text-sky-700 dark:text-sky-300">{interviewCount}<span className="text-xs font-normal text-sky-400 ml-1">社</span></p>
-          </div>
-          <div className="bg-gradient-to-br from-pink-50 to-white p-3 md:p-4 rounded-xl shadow-sm border border-pink-100 relative overflow-hidden dark:from-slate-800 dark:to-slate-800 dark:border-slate-700">
-            <div className="absolute top-0 right-0 p-2 opacity-10 text-pink-600 dark:opacity-30 dark:text-pink-400"><CheckCircle size={40} /></div>
-            <p className="text-xs text-pink-600 font-bold mb-1 dark:text-pink-400">内定</p>
-            <p className="text-xl md:text-2xl font-black text-pink-600 dark:text-pink-300">{offerCount}<span className="text-xs font-normal text-pink-400 ml-1">社</span></p>
-          </div>
-          <div className="bg-gradient-to-br from-yellow-50 to-white p-3 md:p-4 rounded-xl shadow-sm border border-yellow-100 relative overflow-hidden dark:from-slate-800 dark:to-slate-800 dark:border-slate-700">
-            <div className="absolute top-0 right-0 p-2 opacity-10 text-yellow-600 dark:opacity-30 dark:text-yellow-400"><Star size={40} /></div>
-            <p className="text-xs text-yellow-600 font-bold mb-1 dark:text-yellow-400">第一志望 残り</p>
-            <p className="text-xl md:text-2xl font-black text-yellow-600 dark:text-yellow-300">{highPriorityActiveCount}<span className="text-xs font-normal text-yellow-400 ml-1">社</span></p>
-          </div>
-        </div>
 
+        {/* ダッシュボード部品の使用 */}
+        <Dashboard
+          totalCount={totalCount}
+          interviewCount={interviewCount}
+          offerCount={offerCount}
+          highPriorityActiveCount={highPriorityActiveCount}
+        />
+
+        {/* カレンダー & 予定詳細 */}
         <div className="mb-8 flex flex-col md:grid md:grid-cols-2 gap-6">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 dark:bg-slate-800 dark:border-slate-700 w-full overflow-hidden">
             <h2 className="text-center font-bold mb-4 text-gray-700 flex items-center justify-center gap-2 dark:text-white">
@@ -655,6 +598,7 @@ export default function Home() {
           </div>
         </div>
 
+        {/* 追加エリア */}
         <div className="bg-white p-2 rounded-full shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-2 mb-8 pl-4 dark:bg-slate-800 dark:border-slate-700">
           <input
             type="text"
@@ -671,6 +615,7 @@ export default function Home() {
           </button>
         </div>
 
+        {/* 検索・絞り込み */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6 pb-2">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -692,6 +637,7 @@ export default function Home() {
           </select>
         </div>
 
+        {/* リスト表示 */}
         <div className="space-y-4">
           {sortedCompanies.length === 0 && (
             <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-300 dark:bg-slate-800 dark:border-slate-700">
