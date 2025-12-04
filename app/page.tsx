@@ -6,8 +6,7 @@ import { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
-// useTheme, Sun, Moon を削除しました
-import { LayoutDashboard, Briefcase, CheckCircle, Star, LogOut, Plus, Search, User as UserIcon, Calendar as CalendarIcon } from "lucide-react";
+import { LayoutDashboard, Briefcase, CheckCircle, Star, LogOut, Plus, Search, User as UserIcon, Calendar as CalendarIcon, Sun, Moon, Clock, Edit2, Trash2 } from "lucide-react";
 
 import CompanyCard from "../components/CompanyCard";
 
@@ -16,6 +15,8 @@ type Company = {
   name: string;
   status: string;
   nextDate: string;
+  nextTime?: string;    // 開始時間
+  nextEndTime?: string; // ▼ 追加：終了時間
   event_content?: string;
   event_requirements?: string;
   mypage_url?: string;
@@ -32,8 +33,6 @@ const STATUS_OPTIONS = [
 const PRIORITY_OPTIONS = ["高", "中", "低"];
 
 export default function Home() {
-  // useTheme 関連のコードを削除しました
-
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -99,6 +98,8 @@ export default function Home() {
         name: item.name,
         status: item.status,
         nextDate: item.next_date || "",
+        nextTime: item.next_time || "",
+        nextEndTime: item.next_end_time || "", // ▼ 追加
         event_content: item.event_content || "",
         event_requirements: item.event_requirements || "",
         mypage_url: item.mypage_url || "",
@@ -131,7 +132,7 @@ export default function Home() {
     else {
       // @ts-ignore
       const newCompany: Company = {
-        id: data[0].id, name: data[0].name, status: data[0].status, nextDate: "", priority: "中", industry: "",
+        id: data[0].id, name: data[0].name, status: data[0].status, nextDate: "", nextTime: "", nextEndTime: "", priority: "中", industry: "",
         mypage_url: "", login_id: "", login_password: "", memo: "", event_content: "", event_requirements: ""
       };
       setCompanies([...companies, newCompany]);
@@ -171,13 +172,32 @@ export default function Home() {
     if (!schedulingCompany) return;
     const companyToSave = schedulingCompany;
     setCompanies(companies.map(c => c.id === companyToSave.id ? companyToSave : c));
+
+    // ▼ 終了時間も保存する
     const { error } = await supabase.from("companies").update({
       next_date: companyToSave.nextDate,
+      next_time: companyToSave.nextTime,
+      next_end_time: companyToSave.nextEndTime, // 追加
       event_content: companyToSave.event_content,
       event_requirements: companyToSave.event_requirements,
     }).eq("id", companyToSave.id);
+
     if (error) alert("保存失敗");
     setSchedulingCompany(null);
+  };
+
+  const handleClearSchedule = async (company: Company) => {
+    if (!confirm("この予定を削除しますか？")) return;
+    const clearedCompany = { ...company, nextDate: "", nextTime: "", nextEndTime: "", event_content: "", event_requirements: "" };
+    setCompanies(companies.map(c => c.id === company.id ? clearedCompany : c));
+    const { error } = await supabase.from("companies").update({
+      next_date: null,
+      next_time: null,
+      next_end_time: null, // 追加
+      event_content: null,
+      event_requirements: null,
+    }).eq("id", company.id);
+    if (error) alert("削除失敗");
   };
 
   const getTileContent = ({ date, view }: { date: Date; view: string }) => {
@@ -191,8 +211,8 @@ export default function Home() {
     if (view !== "month") return "";
     if (formatDateToLocal(date) === selectedDateStr) return "!text-white font-bold";
     const day = date.getDay();
-    if (day === 6) return "!text-blue-600 font-bold dark:!text-blue-400"; // 土曜
-    if (day === 0) return "!text-red-600 font-bold dark:!text-red-400";   // 日曜
+    if (day === 6) return "!text-blue-600 font-bold dark:!text-blue-400";
+    if (day === 0) return "!text-red-600 font-bold dark:!text-red-400";
     return "text-gray-700 dark:text-gray-300";
   };
 
@@ -222,7 +242,14 @@ export default function Home() {
     return a.nextDate.localeCompare(b.nextDate);
   });
 
-  const eventsOnSelectedDate = companies.filter(c => c.nextDate === selectedDateStr);
+  const eventsOnSelectedDate = companies
+    .filter(c => c.nextDate === selectedDateStr)
+    .sort((a, b) => {
+      if (!a.nextTime && !b.nextTime) return 0;
+      if (!a.nextTime) return 1;
+      if (!b.nextTime) return -1;
+      return a.nextTime!.localeCompare(b.nextTime!);
+    });
 
   if (!user) {
     return (
@@ -257,13 +284,33 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 text-gray-800 font-sans pb-20 dark:bg-slate-950 dark:text-gray-200">
 
-      {/* モーダル類 */}
+      {/* 日程登録モーダル（開始・終了時間） */}
       {schedulingCompany && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg dark:bg-slate-800 dark:border dark:border-slate-700">
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2 dark:text-white"><CalendarIcon className="text-blue-600 dark:text-blue-400" /> 日程登録: {schedulingCompany.name}</h2>
             <div className="space-y-4">
-              <div><label className="block text-sm font-bold text-gray-600 mb-1 dark:text-gray-400">日時</label><input type="date" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={schedulingCompany.nextDate || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, nextDate: e.target.value })} /></div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-600 mb-1 dark:text-gray-400">日付</label>
+                <input type="date" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={schedulingCompany.nextDate || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, nextDate: e.target.value })} />
+              </div>
+
+              {/* ▼▼ 時間入力（開始〜終了） ▼▼ */}
+              <div className="grid grid-cols-2 gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-bold text-gray-600 mb-1 dark:text-gray-400">開始時間</label>
+                  <input type="time" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={schedulingCompany.nextTime || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, nextTime: e.target.value })} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 mb-2">〜</span>
+                  <div className="w-full">
+                    <label className="block text-sm font-bold text-gray-600 mb-1 dark:text-gray-400">終了時間</label>
+                    <input type="time" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={schedulingCompany.nextEndTime || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, nextEndTime: e.target.value })} />
+                  </div>
+                </div>
+              </div>
+
               <div><label className="block text-sm font-bold text-gray-600 mb-1 dark:text-gray-400">内容</label><input type="text" placeholder="例：会社説明会" className="border p-2 rounded w-full dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={schedulingCompany.event_content || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, event_content: e.target.value })} /></div>
               <div><label className="block text-sm font-bold text-gray-600 mb-1 dark:text-gray-400">持ち物</label><textarea className="border p-2 rounded w-full h-24 dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={schedulingCompany.event_requirements || ""} onChange={(e) => setSchedulingCompany({ ...schedulingCompany, event_requirements: e.target.value })} /></div>
               <div className="flex justify-end gap-2 pt-4 border-t dark:border-slate-700">
@@ -275,6 +322,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* 詳細メモモーダル（省略なし） */}
       {editingCompany && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto dark:bg-slate-800 dark:border dark:border-slate-700">
@@ -299,7 +347,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* ▼▼ ヘッダー（ボタンを削除しました） ▼▼ */}
+      {/* ヘッダー */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm dark:bg-slate-900/80 dark:border-slate-800">
         <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -307,8 +355,6 @@ export default function Home() {
             <h1 className="text-xl font-bold text-gray-800 hidden sm:block dark:text-white">就活マネージャー</h1>
           </div>
           <div className="flex items-center gap-4">
-
-            {/* 名前とログアウトボタンのみ */}
             {fullName && (
               <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-full dark:bg-slate-800 dark:text-white">
                 <UserIcon size={16} className="text-gray-500 dark:text-gray-300" />
@@ -323,7 +369,7 @@ export default function Home() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-6">
-        {/* ▼▼ ダッシュボード ▼▼ */}
+        {/* ダッシュボード */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
           <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100 relative overflow-hidden dark:bg-slate-800 dark:border-slate-700">
             <div className="absolute top-0 right-0 p-2 opacity-10 dark:opacity-30 dark:text-white"><LayoutDashboard size={40} /></div>
@@ -377,10 +423,25 @@ export default function Home() {
               ) : (
                 <div className="space-y-3">
                   {eventsOnSelectedDate.map(company => (
-                    <div key={company.id} className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 hover:bg-blue-50 transition dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-slate-600">
+                    <div key={company.id} className="group relative bg-blue-50/50 p-3 rounded-lg border border-blue-100 hover:bg-blue-50 transition dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-slate-600">
+
+                      {/* 編集・削除ボタン (ホバーで出現) */}
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setSchedulingCompany(company)} className="p-1.5 bg-white text-blue-600 rounded shadow hover:bg-blue-50 dark:bg-slate-800 dark:text-blue-400"><Edit2 size={14} /></button>
+                        <button onClick={() => handleClearSchedule(company)} className="p-1.5 bg-white text-red-500 rounded shadow hover:bg-red-50 dark:bg-slate-800 dark:text-red-400"><Trash2 size={14} /></button>
+                      </div>
+
                       <div className="flex items-center gap-2 mb-1">
                         <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                         <h4 className="font-bold text-gray-800 dark:text-white">{company.name}</h4>
+                        {/* ▼▼ 時間表示（終了時間もあれば表示） ▼▼ */}
+                        {company.nextTime && (
+                          <span className="flex items-center gap-1 text-xs text-gray-500 bg-white px-2 py-0.5 rounded border border-gray-200 dark:bg-slate-800 dark:border-slate-500 dark:text-gray-300">
+                            <Clock size={12} />
+                            {company.nextTime}
+                            {company.nextEndTime && ` 〜 ${company.nextEndTime}`}
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-blue-700 ml-4 font-medium mb-1 dark:text-blue-300">{company.event_content || "予定あり"}</p>
                       {company.event_requirements && (
