@@ -12,10 +12,59 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* カレンダーのダークモード対応（メディアクエリを使用） */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+
+  /* 1. カレンダー全体の背景 */
+  .react-calendar {
+    background-color: #1e293b !important;
+    /* slate-800 */
+    color: white !important;
+    border: none !important;
+    border-radius: 0.75rem;
+  }
+
+  /* 2. 普通の日にマウスを乗せた時（ホバー・フォーカス）は「濃いグレー」 */
+  .react-calendar__tile:enabled:hover,
+  .react-calendar__tile:enabled:focus {
+    background-color: #334155 !important;
+    /* slate-700 */
+    color: white !important;
+  }
+
+  /* 3. 「選択中の日付（Active）」は青背景・白文字 */
+  .react-calendar__tile--active,
+  .react-calendar__tile--active:enabled:hover,
+  .react-calendar__tile--active:enabled:focus {
+    background-color: #2563eb !important;
+    /* blue-600 */
+    color: white !important;
+  }
+
+  /* ▼▼▼ 4. 【追加】「今日の日付（Now）」は黄色背景・黒文字！ ▼▼▼ */
+  .react-calendar__tile--now {
+    background-color: #facc15 !important;
+    /* yellow-400 (明るい黄色) */
+    color: black !important;
+    /* 黒文字にして見やすくする */
+  }
+
+  /* 今日かつホバーした時 */
+  .react-calendar__tile--now:enabled:hover,
+  .react-calendar__tile--now:enabled:focus {
+    background-color: #eab308 !important;
+    /* yellow-500 (少し濃い黄色) */
+    color: black !important;
+  }
+
+  /* 5. 月の切り替えボタン */
+  .react-calendar__navigation button:enabled:hover,
+  .react-calendar__navigation button:enabled:focus {
+    background-color: #334155 !important;
+  }
+
+  .react-calendar__navigation button {
+    color: white !important;
   }
 }
 
@@ -23,4 +72,24 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* カレンダーのダークモード対応 */
+.dark .react-calendar {
+  background-color: #1e293b !important;
+  /* slate-800 */
+  color: white !important;
+  border: none !important;
+  border-radius: 0.75rem;
+}
+
+.dark .react-calendar__tile:enabled:hover,
+.dark .react-calendar__tile:enabled:focus {
+  background-color: #334155 !important;
+  /* slate-700 */
+}
+
+.dark .react-calendar__navigation button:enabled:hover,
+.dark .react-calendar__navigation button:enabled:focus {
+  background-color: #334155 !important;
 }
