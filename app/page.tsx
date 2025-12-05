@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import "react-calendar/dist/Calendar.css";
 
-// ▼▼▼ 共通の型と定数をインポート（ここ重要！） ▼▼▼
+// 共通型・定数
 import { Company, Notification, STATUS_OPTIONS, PRIORITY_OPTIONS } from "../types";
 
-// カスタムフック
+// Hooks
 import { useAuth } from "../hooks/useAuth";
 import { useCompanies } from "../hooks/useCompanies";
 import { useGmail } from "../hooks/useGmail";
@@ -23,20 +23,13 @@ import ScheduleModal from "../components/ScheduleModal";
 import DetailModal from "../components/DetailModal";
 
 export default function Home() {
-  // 1. 認証フック
   const { user, fullName, loading, isGoogleLinked, signIn, signInWithGoogle, signOut } = useAuth();
-
-  // ログイン画面用のState（LoginViewに渡す用）
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // 2. データ管理フック
   const { companies, addCompany, updateCompany, deleteCompany, clearSchedule } = useCompanies(user?.id);
-
-  // 3. Gmail・通知フック
   const { notifications, checkingMail, checkGmail, readNotification, addLocalNotification } = useGmail(user, companies);
 
-  // 4. 画面の状態管理
   const [companyName, setCompanyName] = useState("");
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [schedulingCompany, setSchedulingCompany] = useState<Company | null>(null);
@@ -44,27 +37,19 @@ export default function Home() {
   const [filterPriority, setFilterPriority] = useState("すべて");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-  // --- ログイン処理のラッパー ---
   const handleSignIn = async () => {
     await signIn(email, password);
   };
 
-  // --- ログイン画面の表示判定 ---
   if (!user) {
     return (
       <LoginView
-        email={email}
-        setEmail={setEmail}
-        password={password}
-        setPassword={setPassword}
-        loading={loading}
-        onSignIn={handleSignIn}
-        onGoogleSignIn={signInWithGoogle}
+        email={email} setEmail={setEmail} password={password} setPassword={setPassword}
+        loading={loading} onSignIn={handleSignIn} onGoogleSignIn={signInWithGoogle}
       />
     );
   }
 
-  // --- ロジックの結合 ---
   const handleAddCompany = async () => {
     if (!companyName) return;
     await addCompany(companyName);
@@ -72,7 +57,6 @@ export default function Home() {
     setCompanyName("");
   };
 
-  // フィルタリングロジック
   const filteredCompanies = companies.filter((company) => {
     const searchLower = searchText.toLowerCase();
     const matchName = company.name.toLowerCase().includes(searchLower);
@@ -88,7 +72,6 @@ export default function Home() {
     return a.nextDate.localeCompare(b.nextDate);
   });
 
-  // 集計ロジック
   const totalCount = companies.length;
   const offerCount = companies.filter(c => c.status === "内定").length;
   const interviewCount = companies.filter(c => c.status.includes("面接")).length;
@@ -96,6 +79,7 @@ export default function Home() {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
+    // ▼▼▼ 元の背景色に戻しました ▼▼▼
     <div className="min-h-screen bg-slate-50 text-gray-800 font-sans pb-20 dark:bg-slate-950 dark:text-gray-200 overflow-x-hidden w-full">
 
       <ScheduleModal
