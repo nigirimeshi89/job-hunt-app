@@ -8,18 +8,20 @@ export const useCompanies = (userId: string | undefined) => {
     // データの取得
     const fetchCompanies = useCallback(async () => {
         if (!userId) return;
+
         const { data, error } = await supabase
             .from("companies")
             .select("*")
             .order("created_at", { ascending: true });
 
         if (error) {
-            console.error("Error fetching companies:", error);
+            // ▼▼▼ エラーの詳細を表示するように改良！ ▼▼▼
+            console.error("Error fetching companies:", error.message, error.details, error.hint);
             return;
         }
 
         if (data) {
-            // DBのカラム名をアプリの型に変換
+            // DBのカラム名(スネークケース)をアプリの型(キャメルケース)に変換
             const formattedData = data.map((item: any) => ({
                 id: item.id,
                 name: item.name,
@@ -59,6 +61,7 @@ export const useCompanies = (userId: string | undefined) => {
             return;
         }
 
+        // 追加したデータを即座にstateに反映
         const newCompany: Company = {
             // @ts-ignore
             id: data[0].id, name: data[0].name, status: data[0].status,
@@ -90,6 +93,7 @@ export const useCompanies = (userId: string | undefined) => {
         }).eq("id", updatedCompany.id);
 
         if (error) {
+            console.error("Update error:", error.message);
             alert("保存に失敗しました");
             fetchCompanies(); // エラーが出たら元に戻すために再取得
         }
@@ -99,7 +103,13 @@ export const useCompanies = (userId: string | undefined) => {
     const deleteCompany = async (id: number) => {
         if (!confirm("削除しますか？")) return;
         setCompanies(companies.filter(c => c.id !== id));
-        await supabase.from("companies").delete().eq("id", id);
+
+        const { error } = await supabase.from("companies").delete().eq("id", id);
+        if (error) {
+            console.error("Delete error:", error.message);
+            alert("削除に失敗しました");
+            fetchCompanies();
+        }
     };
 
     // スケジュールクリア
@@ -109,12 +119,12 @@ export const useCompanies = (userId: string | undefined) => {
             ...company,
             nextDate: "", nextTime: "", nextEndTime: "", event_content: "", event_requirements: ""
         };
-        updateCompany(clearedCompany); // updateCompanyを再利用！
+        updateCompany(clearedCompany);
     };
 
     return {
         companies,
-        setCompanies, // 必要なら外からセットできるように
+        setCompanies,
         fetchCompanies,
         addCompany,
         updateCompany,

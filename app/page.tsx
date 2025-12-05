@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import "react-calendar/dist/Calendar.css";
 
-// 共通の型定義をインポート
-import { Company, Notification, STATUS_OPTIONS } from "../types";
+// ▼▼▼ 共通の型と定数をインポート（ここ重要！） ▼▼▼
+import { Company, Notification, STATUS_OPTIONS, PRIORITY_OPTIONS } from "../types";
 
 // カスタムフック
 import { useAuth } from "../hooks/useAuth";
@@ -26,7 +26,7 @@ export default function Home() {
   // 1. 認証フック
   const { user, fullName, loading, isGoogleLinked, signIn, signInWithGoogle, signOut } = useAuth();
 
-  // ▼▼ 修正：ログイン画面用の変数をここに復活させました！ ▼▼
+  // ログイン画面用のState（LoginViewに渡す用）
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -44,7 +44,7 @@ export default function Home() {
   const [filterPriority, setFilterPriority] = useState("すべて");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-  // --- ログイン処理のラッパー関数 ---
+  // --- ログイン処理のラッパー ---
   const handleSignIn = async () => {
     await signIn(email, password);
   };
