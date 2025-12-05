@@ -218,7 +218,9 @@ export default function Home() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'http://localhost:3000',
+        // ▼▼ 修正：localhost 固定ではなく、今いるURLに戻るように変更 ▼▼
+        redirectTo: location.origin,
+
         scopes: 'https://www.googleapis.com/auth/gmail.readonly',
         queryParams: {
           access_type: 'offline',
