@@ -27,21 +27,23 @@ export const useGmail = (user: User | null, companies: Company[]) => {
         await supabase.from("notifications").update({ is_read: true }).eq("id", noteId);
     };
 
-    const addLocalNotification = async (message: string, companyId?: number) => {
+    // ローカル通知追加
+    const addLocalNotification = async (message: string, companyId?: number, body?: string) => {
         if (!user) return;
         await supabase.from("notifications").insert([{
             user_id: user.id,
             company_id: companyId,
             message: message,
+            email_body: body,
             is_read: false
         }]);
-        fetchNotifications();
+        // 追加直後にリストを更新しない（ループ中は最後にまとめて更新する方が効率的）
     };
 
-    // ▼▼▼ 最強版：指名検索ロジック ▼▼▼
+    // Gmailチェックロジック
     const checkGmail = async () => {
         setCheckingMail(true);
-        console.log("🚀 メール確認（指名検索モード）を開始...");
+        console.log("🚀 メール確認を開始...");
 
         try {
             const { data: { session } } = await supabase.auth.getSession();
@@ -53,29 +55,25 @@ export const useGmail = (user: User | null, companies: Company[]) => {
                 return;
             }
 
-            // 1. 検索クエリ（指名手配リスト）を作る
-            // 例: "from:hr@sony.com OR from:recruit@toyota.jp OR ..."
             const targetEmails = companies
                 .map(c => c.contact_email)
-                .filter(email => email && email.trim() !== ""); // 空欄は除外
+                .filter(email => email && email.trim() !== "");
 
             if (targetEmails.length === 0) {
-                alert("企業のメールアドレスが1つも登録されていません。\n詳細メモから登録してください。");
+                alert("企業のメールアドレスが登録されていません。");
                 setCheckingMail(false);
                 return;
             }
 
             const query = targetEmails.map(email => `from:${email}`).join(" OR ");
-            console.log("🔎 検索クエリ:", query);
 
-            // 2. Gmail検索APIを叩く（最新30件ではなく、条件に合うメールを探す！）
             const listRes = await fetch(
                 `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=10`,
                 { headers: { Authorization: `Bearer ${providerToken}` } }
             );
 
             if (!listRes.ok) {
-                alert("Gmailへのアクセスに失敗しました。");
+                alert("Gmailアクセスエラー");
                 setCheckingMail(false);
                 return;
             }
@@ -83,52 +81,80 @@ export const useGmail = (user: User | null, companies: Company[]) => {
             const listData = await listRes.json();
 
             if (!listData.messages || listData.messages.length === 0) {
-                alert("登録したアドレスからのメールは見つかりませんでした。");
+                alert("該当するメールは見つかりませんでした。");
                 setCheckingMail(false);
                 return;
             }
 
-            console.log(`📨 ヒットしたメール: ${listData.messages.length} 件`);
+            // ▼▼▼ 修正ポイント：取得したメールを「古い順」に並び替える！ ▼▼▼
+            // これにより、最新のメールが「最後に」登録され、通知リストの一番上に来るようになります。
+            const messages = listData.messages.reverse();
+
+            console.log(`📨 ヒット: ${messages.length} 件`);
             let newCount = 0;
 
-            // 3. 詳細チェック
-            for (const msg of listData.messages) {
+            for (const msg of messages) {
                 const detailRes = await fetch(
                     `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
                     { headers: { Authorization: `Bearer ${providerToken}` } }
                 );
                 const detail = await detailRes.json();
 
+                // ヘッダー情報の取得
                 const headers = detail.payload.headers;
                 const fromHeader = headers.find((h: any) => h.name === "From")?.value || "";
                 const subject = headers.find((h: any) => h.name === "Subject")?.value || "(件名なし)";
-                const snippet = detail.snippet || "";
 
-                // どのアドレスと一致したか探す
+                // 本文取得（デコード処理）
+                const decodeBase64 = (data: string) => {
+                    try {
+                        const base64 = data.replace(/-/g, '+').replace(/_/g, '/');
+                        const decoded = atob(base64);
+                        const bytes = new Uint8Array(decoded.length);
+                        for (let i = 0; i < decoded.length; i++) {
+                            bytes[i] = decoded.charCodeAt(i);
+                        }
+                        return new TextDecoder().decode(bytes);
+                    } catch (e) { return ""; }
+                };
+
+                const getEmailBody = (payload: any) => {
+                    if (payload.body && payload.body.data) return decodeBase64(payload.body.data);
+                    if (payload.parts) {
+                        for (const part of payload.parts) {
+                            if (part.mimeType === "text/plain" && part.body && part.body.data) return decodeBase64(part.body.data);
+                        }
+                    }
+                    return "(本文なし)";
+                };
+
+                const bodyText = getEmailBody(detail.payload);
+
                 const matchedCompany = companies.find((c) => {
                     if (!c.contact_email) return false;
                     return fromHeader.toLowerCase().includes(c.contact_email.toLowerCase());
                 });
 
                 if (matchedCompany) {
-                    // ▼ 重複チェック（今回は必要！過去のメールも拾ってくるので、通知済みならスキップ）
+                    // 重複チェック
                     const isExist = notifications.some(n => n.message.includes(subject));
 
                     if (!isExist) {
-                        const message = `📩 ${matchedCompany.name}: ${subject}\n\n${snippet}...`;
-                        await addLocalNotification(message, matchedCompany.id);
+                        const message = `📩 ${matchedCompany.name}: ${subject}`;
+                        // DBに追加
+                        await addLocalNotification(message, matchedCompany.id, bodyText);
                         newCount++;
-                        console.log(`✅ 通知作成: ${subject}`);
-                    } else {
-                        console.log(`⚠️ 既知のメールなのでスキップ: ${subject}`);
                     }
                 }
             }
 
+            // 最後にまとめてリストを更新
+            fetchNotifications();
+
             if (newCount > 0) {
-                alert(`${newCount}件のメールを新しく通知に追加しました！`);
+                alert(`${newCount}件のメールを通知しました！`);
             } else {
-                alert("登録アドレスからのメールは見つかりましたが、すでに全て通知済みです。");
+                alert("メールは見つかりましたが、すでに通知済みです。");
             }
 
         } catch (e: any) {

@@ -24,10 +24,11 @@ export type Notification = {
   is_read: boolean;
   created_at: string;
   company_id?: number;
+  email_body?: string; // 👈 追加：メール本文
 };
 
 export const STATUS_OPTIONS = [
-  "エントリー済", "書類選考中", "1次面接", "2次面接", "最終面接", "内定", "お見送り",
+  "未エントリー", "書類選考中", "1次面接", "2次面接", "最終面接", "内定", "お見送り",
 ];
 
 export const PRIORITY_OPTIONS = ["高", "中", "低"];
