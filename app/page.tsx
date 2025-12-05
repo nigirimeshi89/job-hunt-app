@@ -65,6 +65,8 @@ export default function Home() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [checkingMail, setCheckingMail] = useState(false);
 
+  const [isGoogleLinked, setIsGoogleLinked] = useState(false);
+
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -73,6 +75,10 @@ export default function Home() {
         fetchCompanies(session.user.id);
         fetchProfile(session.user.id);
         fetchNotifications(session.user.id);
+        const providers = session.user.app_metadata.providers || [];
+        if (providers.includes('google')) {
+          setIsGoogleLinked(true);
+        }
       }
     };
     checkUser();
@@ -83,10 +89,13 @@ export default function Home() {
         fetchCompanies(session.user.id);
         fetchProfile(session.user.id);
         fetchNotifications(session.user.id);
+        const providers = session.user.app_metadata.providers || [];
+        setIsGoogleLinked(providers.includes('google'));
       } else {
         setCompanies([]);
         setFullName("");
         setNotifications([]);
+        setIsGoogleLinked(false);
       }
     });
     return () => subscription.unsubscribe();
@@ -218,9 +227,7 @@ export default function Home() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        // ▼▼ 修正：localhost 固定ではなく、今いるURLに戻るように変更 ▼▼
         redirectTo: location.origin,
-
         scopes: 'https://www.googleapis.com/auth/gmail.readonly',
         queryParams: {
           access_type: 'offline',
@@ -420,14 +427,17 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
 
-            <button
-              onClick={checkGmail}
-              disabled={checkingMail}
-              className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-bold transition-all ${checkingMail ? 'bg-gray-200 text-gray-500' : 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-200'}`}
-            >
-              <RefreshCw size={14} className={checkingMail ? "animate-spin" : ""} />
-              {checkingMail ? "確認中..." : "メール確認"}
-            </button>
+            {/* Google連携済みの場合のみ表示 */}
+            {isGoogleLinked && (
+              <button
+                onClick={checkGmail}
+                disabled={checkingMail}
+                className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-bold transition-all ${checkingMail ? 'bg-gray-200 text-gray-500' : 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-200'}`}
+              >
+                <RefreshCw size={14} className={checkingMail ? "animate-spin" : ""} />
+                {checkingMail ? "確認中..." : "メール確認"}
+              </button>
+            )}
 
             <div className="relative">
               <button
@@ -499,21 +509,23 @@ export default function Home() {
           onClearSchedule={handleClearSchedule}
         />
 
-        {/* 追加エリア */}
-        <div className="bg-white p-2 rounded-full shadow-sm border border-gray-200 flex flex-col sm:flex-row gap-2 mb-8 pl-4 dark:bg-slate-800 dark:border-slate-700">
-          <input
-            type="text"
-            placeholder="新しい企業名を入力..."
-            className="flex-1 bg-transparent outline-none text-sm dark:text-white py-2 sm:py-0"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-          />
-          <button
-            onClick={handleAddCompany}
-            className="bg-gray-800 text-white px-6 py-2 rounded-full font-bold text-sm hover:bg-black transition flex items-center justify-center gap-2 dark:bg-blue-600 dark:hover:bg-blue-700 w-full sm:w-auto"
-          >
-            <Plus size={16} /> 追加
-          </button>
+        {/* 追加エリア（横並びで自然なデザインに！） */}
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-8 dark:bg-slate-800 dark:border-slate-700">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="text"
+              placeholder="新しい企業名を入力..."
+              className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 outline-none focus:ring-2 ring-blue-100 transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:ring-slate-600"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+            />
+            <button
+              onClick={handleAddCompany}
+              className="bg-gray-800 text-white px-6 py-3 rounded-lg font-bold text-sm hover:bg-black transition flex items-center justify-center gap-2 dark:bg-blue-600 dark:hover:bg-blue-700 w-full sm:w-auto"
+            >
+              <Plus size={18} /> 追加する
+            </button>
+          </div>
         </div>
 
         {/* 検索・絞り込み */}
