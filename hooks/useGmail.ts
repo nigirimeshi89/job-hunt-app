@@ -27,7 +27,6 @@ export const useGmail = (user: User | null, companies: Company[]) => {
         await supabase.from("notifications").update({ is_read: true }).eq("id", noteId);
     };
 
-    // 手動で通知を追加する（企業追加時など）
     const addLocalNotification = async (message: string, companyId?: number) => {
         if (!user) return;
         await supabase.from("notifications").insert([{
@@ -39,23 +38,39 @@ export const useGmail = (user: User | null, companies: Company[]) => {
         fetchNotifications();
     };
 
-    // Gmailチェックロジック
+    // ▼▼▼ 最強版：指名検索ロジック ▼▼▼
     const checkGmail = async () => {
         setCheckingMail(true);
-        console.log("🚀 メール確認を開始します...");
+        console.log("🚀 メール確認（指名検索モード）を開始...");
 
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const providerToken = session?.provider_token;
 
             if (!providerToken) {
-                alert("Google連携の期限切れか、権限がありません。再ログインしてください。");
+                alert("Google連携の権限がありません。再ログインしてください。");
                 setCheckingMail(false);
                 return;
             }
 
+            // 1. 検索クエリ（指名手配リスト）を作る
+            // 例: "from:hr@sony.com OR from:recruit@toyota.jp OR ..."
+            const targetEmails = companies
+                .map(c => c.contact_email)
+                .filter(email => email && email.trim() !== ""); // 空欄は除外
+
+            if (targetEmails.length === 0) {
+                alert("企業のメールアドレスが1つも登録されていません。\n詳細メモから登録してください。");
+                setCheckingMail(false);
+                return;
+            }
+
+            const query = targetEmails.map(email => `from:${email}`).join(" OR ");
+            console.log("🔎 検索クエリ:", query);
+
+            // 2. Gmail検索APIを叩く（最新30件ではなく、条件に合うメールを探す！）
             const listRes = await fetch(
-                "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=10",
+                `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=10`,
                 { headers: { Authorization: `Bearer ${providerToken}` } }
             );
 
@@ -66,40 +81,56 @@ export const useGmail = (user: User | null, companies: Company[]) => {
             }
 
             const listData = await listRes.json();
+
             if (!listData.messages || listData.messages.length === 0) {
-                alert("新しい未読メールはありませんでした。");
+                alert("登録したアドレスからのメールは見つかりませんでした。");
                 setCheckingMail(false);
                 return;
             }
 
+            console.log(`📨 ヒットしたメール: ${listData.messages.length} 件`);
             let newCount = 0;
+
+            // 3. 詳細チェック
             for (const msg of listData.messages) {
                 const detailRes = await fetch(
                     `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
                     { headers: { Authorization: `Bearer ${providerToken}` } }
                 );
                 const detail = await detailRes.json();
+
                 const headers = detail.payload.headers;
                 const fromHeader = headers.find((h: any) => h.name === "From")?.value || "";
                 const subject = headers.find((h: any) => h.name === "Subject")?.value || "(件名なし)";
+                const snippet = detail.snippet || "";
 
-                // 照合
+                // どのアドレスと一致したか探す
                 const matchedCompany = companies.find((c) => {
                     if (!c.contact_email) return false;
                     return fromHeader.toLowerCase().includes(c.contact_email.toLowerCase());
                 });
 
                 if (matchedCompany) {
-                    await addLocalNotification(`📩 ${matchedCompany.name}からメール: ${subject}`, matchedCompany.id);
-                    newCount++;
+                    // ▼ 重複チェック（今回は必要！過去のメールも拾ってくるので、通知済みならスキップ）
+                    const isExist = notifications.some(n => n.message.includes(subject));
+
+                    if (!isExist) {
+                        const message = `📩 ${matchedCompany.name}: ${subject}\n\n${snippet}...`;
+                        await addLocalNotification(message, matchedCompany.id);
+                        newCount++;
+                        console.log(`✅ 通知作成: ${subject}`);
+                    } else {
+                        console.log(`⚠️ 既知のメールなのでスキップ: ${subject}`);
+                    }
                 }
             }
 
             if (newCount > 0) {
-                alert(`${newCount}件の企業メールを見つけました！`);
+                alert(`${newCount}件のメールを新しく通知に追加しました！`);
             } else {
-                alert("登録企業からのメールは見つかりませんでした。");
+                alert("登録アドレスからのメールは見つかりましたが、すでに全て通知済みです。");
             }
+
         } catch (e: any) {
             console.error(e);
             alert("エラー: " + e.message);
@@ -112,6 +143,6 @@ export const useGmail = (user: User | null, companies: Company[]) => {
         checkingMail,
         checkGmail,
         readNotification,
-        addLocalNotification, // 追加時のお知らせ用に公開
+        addLocalNotification,
     };
 };
