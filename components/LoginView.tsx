@@ -16,7 +16,7 @@ export default function LoginView({ email, setEmail, password, setPassword, load
             <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-sm border border-white/50 dark:bg-slate-800 dark:border-slate-700">
                 <div className="text-center mb-8">
                     <span className="text-4xl mb-2 block">🎓</span>
-                    <h1 className="text-2xl font-bold text-gray-800 dark:text-white">就活マネージャー</h1>
+                    <h1 className="text-2xl font-bold text-gray-800 dark:text-white">就活管理マネージャー</h1>
                     <p className="text-sm text-gray-500 mt-2 dark:text-gray-400">すべての選考を、これひとつで。</p>
                 </div>
                 <div className="space-y-4">
@@ -30,18 +30,18 @@ export default function LoginView({ email, setEmail, password, setPassword, load
                         <span className="relative bg-white px-2 text-xs text-gray-500 dark:bg-slate-800">または</span>
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-gray-500 ml-1 dark:text-gray-400">メールアドレス</label>
+                        <label className="text-xs font-bold text-gray-500 ml-1 dark:text-gray-400">Email</label>
                         <input type="email" placeholder="example@mail.com" className="border p-3 rounded-lg w-full bg-gray-50 focus:bg-white focus:ring-2 ring-blue-200 outline-none transition dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={email} onChange={(e) => setEmail(e.target.value)} />
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-gray-500 ml-1 dark:text-gray-400">パスワード</label>
+                        <label className="text-xs font-bold text-gray-500 ml-1 dark:text-gray-400">Password</label>
                         <input type="password" placeholder="••••••••" className="border p-3 rounded-lg w-full bg-gray-50 focus:bg-white focus:ring-2 ring-blue-200 outline-none transition dark:bg-slate-700 dark:border-slate-600 dark:text-white" value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
                     <button onClick={onSignIn} disabled={loading} className="bg-blue-600 text-white p-3 rounded-lg w-full font-bold shadow-lg hover:shadow-xl hover:bg-blue-700 transition transform hover:-translate-y-0.5">
-                        {loading ? "読み込み中..." : "ログインする"}
+                        {loading ? "読み込み中..." : "Sign In"}
                     </button>
                     <div className="text-center mt-6 pt-4 border-t dark:border-slate-700">
-                        <Link href="/signup" className="text-blue-600 font-bold hover:underline text-sm dark:text-blue-400">新しくアカウントを作る →</Link>
+                        <Link href="/signup" className="text-blue-600 font-bold hover:underline text-sm dark:text-blue-400">Sign Up →</Link>
                     </div>
                 </div>
             </div>

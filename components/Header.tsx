@@ -41,7 +41,7 @@ export default function Header({ fullName, onSignOut, isGoogleLinked, checkingMa
                 <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
                     <div className="flex items-center gap-2">
                         <span className="text-2xl">🎓</span>
-                        <h1 className="text-xl font-bold text-gray-800 hidden sm:block dark:text-white">就活マネージャー</h1>
+                        <h1 className="text-xl font-bold text-gray-800 hidden sm:block dark:text-white">就活管理マネージャー</h1>
                     </div>
                     <div className="flex items-center gap-4">
                         {isGoogleLinked && (

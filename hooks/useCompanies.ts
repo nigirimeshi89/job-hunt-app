@@ -53,7 +53,7 @@ export const useCompanies = (userId: string | undefined) => {
         if (!userId) return;
         const { data, error } = await supabase
             .from("companies")
-            .insert([{ user_id: userId, name: name, status: "未エントリー", priority: "中" }])
+            .insert([{ user_id: userId, name: name, status: "エントリー済", priority: "中" }])
             .select();
 
         if (error) {

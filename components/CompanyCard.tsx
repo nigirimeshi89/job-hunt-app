@@ -18,7 +18,7 @@ export default function CompanyCard({ company, STATUS_OPTIONS, onStatusChange, o
             case "内定": return "bg-pink-50 border-pink-200 text-pink-700 dark:bg-pink-900/30 dark:border-pink-800 dark:text-pink-300";
             case "お見送り": return "bg-gray-100 border-gray-200 text-gray-500 opacity-80 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400";
             case "最終面接": return "bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-300";
-            case "未エントリー": return "bg-white border-gray-200 text-gray-600 dark:bg-slate-800 dark:border-slate-600 dark:text-gray-300";
+            case "エントリー済": return "bg-white border-gray-200 text-gray-600 dark:bg-slate-800 dark:border-slate-600 dark:text-gray-300";
             default: return "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300";
         }
     };

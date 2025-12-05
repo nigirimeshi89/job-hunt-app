@@ -115,14 +115,14 @@ export default function SignUpPage() {
                         disabled={loading}
                         className="bg-blue-600 text-white p-3 rounded w-full font-bold hover:bg-blue-700 mt-4 disabled:opacity-50"
                     >
-                        {loading ? "登録処理中..." : "サインアップ"}
+                        {loading ? "登録処理中..." : "Sign Up"}
                     </button>
                 </div>
 
                 <div className="mt-6 text-center">
                     <p className="text-sm text-gray-600">すでにアカウントをお持ちですか？</p>
                     <Link href="/" className="text-blue-500 underline font-bold">
-                        サインイン
+                        Sign In
                     </Link>
                 </div>
             </div>
