@@ -24,7 +24,6 @@ export default function Header({ fullName, onSignOut, isGoogleLinked, checkingMa
         setShowNotifications(false);
     };
 
-    // ▼▼▼ 追加：ここで確実に「新しい順」に並び替える ▼▼▼
     const sortedNotifications = [...notifications].sort((a, b) => {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
@@ -41,7 +40,7 @@ export default function Header({ fullName, onSignOut, isGoogleLinked, checkingMa
                 <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
                     <div className="flex items-center gap-2">
                         <span className="text-2xl">🎓</span>
-                        <h1 className="text-xl font-bold text-gray-800 hidden sm:block dark:text-white">就活管理マネージャー</h1>
+                        <h1 className="text-xl font-bold text-gray-800 hidden sm:block dark:text-white">就活マネージャー</h1>
                     </div>
                     <div className="flex items-center gap-4">
                         {isGoogleLinked && (
@@ -59,10 +58,10 @@ export default function Header({ fullName, onSignOut, isGoogleLinked, checkingMa
                             </button>
 
                             {showNotifications && (
-                                <div className="absolute right-0 top-10 w-80 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50 dark:bg-slate-800 dark:border-slate-600">
+                                // ▼▼▼ 修正：スマホでは画面固定(fixed)で左右いっぱいに表示し、PCでは絶対配置(absolute)に戻す ▼▼▼
+                                <div className="fixed top-16 left-2 right-2 z-50 sm:absolute sm:top-10 sm:right-0 sm:left-auto sm:w-80 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden dark:bg-slate-800 dark:border-slate-600">
                                     <div className="p-3 bg-gray-50 border-b border-gray-100 font-bold text-sm text-gray-700 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-200">お知らせ</div>
                                     <div className="max-h-80 overflow-y-auto">
-                                        {/* ▼▼▼ 修正：sortedNotifications を使う ▼▼▼ */}
                                         {sortedNotifications.length === 0 ? <p className="text-center text-gray-400 text-sm py-4">通知はありません</p> : sortedNotifications.map(n => (
                                             <div
                                                 key={n.id}
